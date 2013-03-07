@@ -13,7 +13,7 @@ var game = createGame({
     if (z = 0 && y <= 1) return 6
 		return 0
 	},
-	texturePath: '/node_modules/painterly-textures/textures/',
+	texturePath: '../../node_modules/painterly-textures/textures/',
   //chunkDistance: 0,
   chunkSize: 16,
   //meshType: 'wireFrame',

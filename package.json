@@ -1,0 +1,16 @@
+{
+  "name": "voxel-physi",
+  "version": "0.0.0",
+  "description": "ERROR: No README.md file found!",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": "",
+  "author": "",
+  "license": "BSD",
+  "dependencies": {
+    "voxel-engine": "git://github.com/maxogden/voxel-engine.git",
+    "painterly-textures": "~0.0.3"
+  }
+}

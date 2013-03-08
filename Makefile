@@ -3,6 +3,6 @@ build/build.js: index.js
 	@browserify index.js > build/build.js
 
 examples: index.js examples/simple/index.html examples/simple/index.js
-	@browserify examples/simple/index.js > examples/simple/build.js
+	@browserify --insert-globals examples/simple/index.js > examples/simple/build.js
 
 .PHONY: examples

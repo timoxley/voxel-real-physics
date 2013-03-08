@@ -5,121 +5,144 @@ var textures = require('painterly-textures')
 
 var game = createGame({
 	generate: function(x, y, z) {
-		//if (y - 5 * Math.sin((x + 6) / 15) < 20) return 2
-    //if (x > 31 || z > 31 || x < -31 || z < -31) return 4
-    if (y < 0 && y > -5 && x < 10 && x > 0 && z < 10 && z > 0) return 0
-    if (y + 10 * Math.sin(x / 16) + (Math.random()) < 0) return 1
-    //if (y < 1 && Math.random() > 0.5) return 5
-    if (z = 0 && y <= 1) return 6
+    //if (y == -1) return 1
+    //if (y < 0 && y > -5 && x < 10 && x > 0 && z < 10 && z > 0) return 0
+    var val = y + 3 * Math.sin(x / 4)
+    if (val < -1 && val > -5) return 1
+    //if (z = 0 && y <= 1) return 6
 		return 0
 	},
-	texturePath: '/node_modules/painterly-textures/textures/',
-  //chunkDistance: 0,
+	texturePath: '../../node_modules/painterly-textures/textures/',
   chunkSize: 16,
-  //meshType: 'wireFrame',
+  chunkDistance: 1,
 })
 
+game.gravity = [0, -0.98, 0]
+
+
 var Physics = require('../../')
-//var Ammo = Physics(game)
-var physi = Physics(game)
+var physi = window.physi = Physics(game)
+
+var groundShape = new physi.CANNON.Plane();
+var groundBody = new physi.CANNON.RigidBody(0, groundShape);
+groundBody.quaternion.setFromAxisAngle(new physi.CANNON.Vec3(-1,0,0),Math.PI/2);
+groundBody.position.set(0,-5,0);
+//groundBody.quaternion.set(1, 0, 1, 0)
 
 
-var scene = game.scene
+physi.world.add(groundBody);
 
-scene.setGravity(new THREE.Vector3( 0, -40, 0 ));
-scene.addEventListener(
-      'update',
-      function() {
-        scene.simulate(undefined, 1);
-      }
-    );
-
-
-var material = game.materials.get('brick');
-
-//setInterval(function plot() {
 window.launch = launch
 document.body.onmousedown = launch
 
+function createBox() {
+  var material = game.materials.get('brick')
+  var mesh = new game.THREE.Mesh(
+    new game.THREE.CubeGeometry(1,10,1),
+    new game.THREE.MeshFaceMaterial(material)
+  )
+  mesh.useQuaternion = true;
+  return mesh
+}
+
 function launch() {
-  // create a mesh and set the matertial
-  var mesh = new physi.BoxMesh(
-    new game.THREE.CubeGeometry(1, 1, 2), // width, height, depth
-    physi.createMaterial(
-      new game.THREE.MeshFaceMaterial(material),
-      .4, // medium friction
-      0.2 // medium restitution
-    ), 10
-  );
-  mesh.rotation.z = Math.random() * Math.PI * 2
-  mesh.rotation.x = Math.random() * Math.PI * 2
-  mesh.rotation.y = Math.random() * Math.PI * 2
-  //document
-  var ray = game.raycast()
+  var CANNON = physi.CANNON
+  // Box
+  var boxShape = new CANNON.Box(new CANNON.Vec3(0.5,5,0.5));
+  var b1 = new CANNON.RigidBody(5, boxShape);
+
   var position = game.camera.position.clone()
-  //plot.prev = position
-  mesh.position.z = position.z
-  mesh.position.y = position.y
-  mesh.position.x = position.x
-  //mesh.addEventListener('collision', function() {
-    ////console.log('collision', arguments)
-  //})
+  b1.position.set(position.x, position.y, position.z);
+  b1.velocity.set(0,0.5,0);
+  b1.angularVelocity.set(Math.random(), Math.random(), Math.random())
+  b1.linearDamping=0.01;
+  b1.angularDamping=0.01;
+
+  b1.allowSleep = false;
+
+  // Sleep parameters
+  b1.sleepSpeedLimit = 0.2; // Body will feel sleepy if speed<1 (speed == norm of velocity)
+  b1.sleepTimeLimit = 1; // Body falls asleep after 1s of sleepiness
+  var mesh = createBox() //physi.shape2mesh(boxShape, game.materials.get('brick'))
+  mesh.position = position.clone()
+  game.scene.add(mesh);
+
+  mesh.position = position.clone()
+  game.scene.add(mesh);
+
   setTimeout(function() {
-    var direction = game.cameraVector()
-    mesh.applyImpulse(new THREE.Vector3(direction[0], direction[1], direction[2]).multiplySelf({x: 200, y: 200, z: 200}), new THREE.Vector3( 0, 0, 0 ))
-  }, 100)
-  game.scene.add(mesh)
-  meshes.push(mesh)
+    console.log('initi tck')
+    physi.add(mesh, b1)
+    //game.on('tick', function(dt) {
+      //debugger
+      //physi.world.step(dt/1000);
+      // Copy coordinates from Cannon.js to Three.js
+
+    //})
+  }, 4000)
+  //var mesh = createBox()
+  //mesh.rotation.z = Math.random() * Math.PI * 2
+  //mesh.rotation.x = Math.random() * Math.PI * 2
+  //mesh.rotation.y = Math.random() * Math.PI * 2
+  //var position = game.camera.position.clone()
+  ////plot.prev = position
+  //mesh.position.z = position.z
+  //mesh.position.y = position.y
+  //mesh.position.x = position.x
+  //physi.world.add()
+  //// create a mesh and set the matertial
+  //var mesh = new physi.BoxMesh(
+    //new game.THREE.CubeGeometry(1, 1, 2), // width, height, depth
+    //physi.createMaterial(
+      //new game.THREE.MeshFaceMaterial(material),
+      //.4, // medium friction
+      //0.2 // medium restitution
+    //), 10
+  //);
+  //mesh.rotation.z = Math.random() * Math.PI * 2
+  //mesh.rotation.x = Math.random() * Math.PI * 2
+  //mesh.rotation.y = Math.random() * Math.PI * 2
+  ////document
+  //var ray = game.raycast()
+  //var position = game.camera.position.clone()
+  ////plot.prev = position
+  //mesh.position.z = position.z
+  //mesh.position.y = position.y
+  //mesh.position.x = position.x
+  ////mesh.addEventListener('collision', function() {
+    //////console.log('collision', arguments)
+  ////})
+  //setTimeout(function() {
+    //var direction = game.cameraVector()
+    //mesh.applyImpulse(new THREE.Vector3(direction[0], direction[1], direction[2]).multiplySelf({x: 200, y: 200, z: 200}), new THREE.Vector3( 0, 0, 0 ))
+  //}, 100)
+  //game.scene.add(mesh)
+  //meshes.push(mesh)
 }
 window.meshes = []
-//setInterval(launch, 2000)
-  //setTimeout(function() {
-    //game.scene.remove(mesh)
-  //}, 5000)
-//}, 2000)
-
-//var plane = new physi.PlaneMesh(
-  //new game.THREE.PlaneGeometry(), // width, height, depth
-  //physi.createMaterial(
-    //new game.THREE.MeshFaceMaterial(game.materials.get('grass')),
-    //0.8,
-    //0.2
-  //),
-  //0
-//);
-//plane.position.y = -128
-//game.scene.add(plane)
 
 setTimeout(function() {
   game.paused = false
-  game.scene.simulate()
 }, 1000)
 
-// = new physi.PlaneMesh(new game.THREE.PlaneGeometry(), new game.THREE.MeshFaceMaterial(game.materials.get('grass')))
-
-
-//game.scene.add(plane)
-
 game.camera.position.set(1.942604445282342, 12.23094305038278, 3.9691374481227792)
-//game.camera.rotation.set(-1.4962913800936888, -0.045478309747712685, -0.5470595327330107)
 
 game.appendTo(document.body)
 window.game = game
-window.physi = physi
-//setTimeout(function() { window.fr = true }, 12000)
+
 window.fControls = new FirstPersonControls(game.camera, document.body)
 game.on('tick', function(dt) {
-  //game.scene.simulate()
   if (window.fr) return
   fControls.update(dt / 60)
 })
+
 /**
  * @author mrdoob / http://mrdoob.com/
  * @author alteredq / http://alteredqualia.com/
  * @author paulirish / http://paulirish.com/
  */
-
 function FirstPersonControls( object, domElement ) {
+  var THREE = game.THREE
 
 	this.object = object;
 	this.target = new THREE.Vector3( 0, 0, 0 );

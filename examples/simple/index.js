@@ -50,9 +50,6 @@ function createBox() {
 }
 
 function launch() {
-  setTimeout(function() {
-    physi.done = true
-  }, 10000)
   var CANNON = physi.CANNON
   // Box
   var boxShape = new CANNON.Box(new CANNON.Vec3(0.5,5,0.5));

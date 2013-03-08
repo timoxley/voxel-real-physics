@@ -9,6 +9,7 @@ module.exports = function(game) {
   })
 
   game.on('tick', function(dt) {
+    dt = dt > 300 ? 300 : dt
     physics.tick(dt/200)
     findCollisions(game, physics)
   })

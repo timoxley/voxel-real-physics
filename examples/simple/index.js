@@ -58,11 +58,11 @@ function launch() {
   b1.linearDamping=0.01;
   b1.angularDamping=0.01;
 
-  b1.allowSleep = false;
+  //b1.allowSleep = false;
 
   // Sleep parameters
-  b1.sleepSpeedLimit = 0.2; // Body will feel sleepy if speed<1 (speed == norm of velocity)
-  b1.sleepTimeLimit = 1; // Body falls asleep after 1s of sleepiness
+  //b1.sleepSpeedLimit = 0.2; // Body will feel sleepy if speed<1 (speed == norm of velocity)
+  //b1.sleepTimeLimit = 1; // Body falls asleep after 1s of sleepiness
   var mesh = createBox() //physi.shape2mesh(boxShape, game.materials.get('brick'))
   mesh.position = position.clone()
   game.scene.add(mesh);

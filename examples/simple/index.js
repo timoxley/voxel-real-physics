@@ -36,7 +36,11 @@ window.launch = launch
 document.body.onmousedown = launch
 
 function createBox() {
-  var material = game.materials.get('brick')
+  var material = game.materials.load('plank')
+  material.forEach(function(m, i) {
+    if (i == 2 || i == 3) return
+    m.map.repeat.set(1, 5)
+  })
   var mesh = new game.THREE.Mesh(
     new game.THREE.CubeGeometry(1,10,1),
     new game.THREE.MeshFaceMaterial(material)

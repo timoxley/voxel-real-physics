@@ -89,7 +89,11 @@ window.launch = launch
 document.body.onmousedown = launch
 
 function createBox() {
-  var material = game.materials.get('brick')
+  var material = game.materials.load('plank')
+  material.forEach(function(m, i) {
+    if (i == 2 || i == 3) return
+    m.map.repeat.set(1, 5)
+  })
   var mesh = new game.THREE.Mesh(
     new game.THREE.CubeGeometry(1,10,1),
     new game.THREE.MeshFaceMaterial(material)
@@ -589,13 +593,12 @@ Physics.prototype.addCollider = function addCollider(position) {
   var collider = new CANNON.RigidBody(0, boxShape);
   collider.position.set(position[0], position[1], position[2])
 
-  //var mesh = new this.game.THREE.Mesh(
-    //new this.game.THREE.CubeGeometry(1,1,1),
-    //new this.game.THREE.MeshBasicMaterial( { color: 0xff0000 })//, wireframe: true } )
-  //)
-  //mesh.scale.set(1.01, 1.01, 1.01)
-  //mesh.position.set(position[0], position[1], position[2])
-  //this.game.scene.add(mesh)
+  var mesh = new this.game.THREE.Mesh(
+    new this.game.THREE.CubeGeometry(1,1,1),
+    new this.game.THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } )
+  )
+  mesh.position.set(position[0], position[1], position[2])
+  this.game.scene.add(mesh)
 
   //this.add(mesh, collider)
   this.colliders.push(collider)
@@ -8496,173 +8499,6 @@ View.prototype.appendTo = function(element) {
   this.resizeWindow(this.width,this.height)
 }
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-view/index.js","/../../node_modules/voxel-engine/node_modules/voxel-view")
-},{"__browserify_process":1}],19:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = inherits
-
-function inherits (c, p, proto) {
-  proto = proto || {}
-  var e = {}
-  ;[c.prototype, proto].forEach(function (s) {
-    Object.getOwnPropertyNames(s).forEach(function (k) {
-      e[k] = Object.getOwnPropertyDescriptor(s, k)
-    })
-  })
-  c.prototype = Object.create(p.prototype, e)
-  c.super = p
-}
-
-//function Child () {
-//  Child.super.call(this)
-//  console.error([this
-//                ,this.constructor
-//                ,this.constructor === Child
-//                ,this.constructor.super === Parent
-//                ,Object.getPrototypeOf(this) === Child.prototype
-//                ,Object.getPrototypeOf(Object.getPrototypeOf(this))
-//                 === Parent.prototype
-//                ,this instanceof Child
-//                ,this instanceof Parent])
-//}
-//function Parent () {}
-//inherits(Child, Parent)
-//new Child
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/inherits/inherits.js","/../../node_modules/voxel-engine/node_modules/inherits")
-},{"__browserify_process":1}],21:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = raf
-
-var EE = require('events').EventEmitter
-  , global = typeof window === 'undefined' ? this : window
-
-var _raf =
-  global.requestAnimationFrame ||
-  global.webkitRequestAnimationFrame ||
-  global.mozRequestAnimationFrame ||
-  global.msRequestAnimationFrame ||
-  global.oRequestAnimationFrame ||
-  (global.setImmediate ? function(fn, el) {
-    setImmediate(fn)
-  } :
-  function(fn, el) {
-    setTimeout(fn, 0)
-  })
-
-function raf(el) {
-  var now = raf.now()
-    , ee = new EE
-
-  ee.pause = function() { ee.paused = true }
-  ee.resume = function() { ee.paused = false }
-
-  _raf(iter, el)
-
-  return ee
-
-  function iter(timestamp) {
-    var _now = raf.now()
-      , dt = _now - now
-    
-    now = _now
-
-    ee.emit('data', dt)
-
-    if(!ee.paused) {
-      _raf(iter, el)
-    }
-  }
-}
-
-raf.polyfill = _raf
-raf.now = function() { return Date.now() }
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/raf/index.js","/../../node_modules/voxel-engine/node_modules/raf")
-},{"events":9,"__browserify_process":1}],22:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = function(field, tilesize, dimensions, offset) {
-  dimensions = dimensions || [ 
-    Math.sqrt(field.length) >> 0
-  , Math.sqrt(field.length) >> 0
-  , Math.sqrt(field.length) >> 0
-  ] 
-
-  offset = offset || [
-    0
-  , 0
-  , 0
-  ]
-
-  field = typeof field === 'function' ? field : function(x, y, z) {
-    return this[x + y * dimensions[1] + (z * dimensions[1] * dimensions[2])]
-  }.bind(field) 
-
-  var coords
-
-  coords = [0, 0, 0]
-
-  return collide
-
-  function collide(box, vec, oncollision) {
-    if(vec[0] === 0 && vec[1] === 0 && vec[2] === 0) return
-
-    // collide x, then y
-    collideaxis(0)
-    collideaxis(1)
-    collideaxis(2)
-
-    function collideaxis(i_axis) {
-      var j_axis = (i_axis + 1) % 3
-        , k_axis = (i_axis + 2) % 3 
-        , posi = vec[i_axis] > 0
-        , leading = box[posi ? 'max' : 'base'][i_axis] 
-        , dir = posi ? 1 : -1
-        , i_start = Math.floor(leading / tilesize)
-        , i_end = (Math.floor((leading + vec[i_axis]) / tilesize)) + dir
-        , j_start = Math.floor(box.base[j_axis] / tilesize)
-        , j_end = Math.ceil(box.max[j_axis] / tilesize)
-        , k_start = Math.floor(box.base[k_axis] / tilesize) 
-        , k_end = Math.ceil(box.max[k_axis] / tilesize)
-        , done = false
-        , edge_vector
-        , edge
-        , tile
-
-      // loop from the current tile coord to the dest tile coord
-      //    -> loop on the opposite axis to get the other candidates
-      //      -> if `oncollision` return `true` we've hit something and
-      //         should break out of the loops entirely.
-      //         NB: `oncollision` is where the client gets the chance
-      //         to modify the `vec` in-flight.
-      // once we're done translate the box to the vec results
-
-      var step = 0
-      for(var i = i_start; !done && i !== i_end; ++step, i += dir) {
-        if(i < offset[i_axis] || i >= dimensions[i_axis]) continue
-        for(var j = j_start; !done && j !== j_end; ++j) {
-          if(j < offset[j_axis] || j >= dimensions[j_axis]) continue
-          for(var k = k_start; k !== k_end; ++k) {
-            if(k < offset[k_axis] || k >= dimensions[k_axis]) continue
-            coords[i_axis] = i
-            coords[j_axis] = j
-            coords[k_axis] = k
-            tile = field.apply(field, coords)
-
-            if(tile === undefined) continue
-
-            edge = dir > 0 ? i * tilesize : (i + 1) * tilesize
-            edge_vector = edge - leading
-
-            if(oncollision(i_axis, tile, coords, dir, edge_vector)) {
-              done = true
-              break
-            }
-          } 
-        }
-      }
-
-      coords[0] = coords[1] = coords[2] = 0
-      coords[i_axis] = vec[i_axis]
-      box.translate(coords)
-    }
-  }  
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/collide-3d-tilemap/index.js","/../../node_modules/voxel-engine/node_modules/collide-3d-tilemap")
 },{"__browserify_process":1}],18:[function(require,module,exports){(function(process,global,__filename,__dirname){
 var window = window || {};
 var self = self || {};
@@ -45153,6 +44989,255 @@ if (typeof exports !== 'undefined') {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/three/three.js","/../../node_modules/voxel-engine/node_modules/three")
+},{"__browserify_process":1}],19:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = inherits
+
+function inherits (c, p, proto) {
+  proto = proto || {}
+  var e = {}
+  ;[c.prototype, proto].forEach(function (s) {
+    Object.getOwnPropertyNames(s).forEach(function (k) {
+      e[k] = Object.getOwnPropertyDescriptor(s, k)
+    })
+  })
+  c.prototype = Object.create(p.prototype, e)
+  c.super = p
+}
+
+//function Child () {
+//  Child.super.call(this)
+//  console.error([this
+//                ,this.constructor
+//                ,this.constructor === Child
+//                ,this.constructor.super === Parent
+//                ,Object.getPrototypeOf(this) === Child.prototype
+//                ,Object.getPrototypeOf(Object.getPrototypeOf(this))
+//                 === Parent.prototype
+//                ,this instanceof Child
+//                ,this instanceof Parent])
+//}
+//function Parent () {}
+//inherits(Child, Parent)
+//new Child
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/inherits/inherits.js","/../../node_modules/voxel-engine/node_modules/inherits")
+},{"__browserify_process":1}],21:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = raf
+
+var EE = require('events').EventEmitter
+  , global = typeof window === 'undefined' ? this : window
+
+var _raf =
+  global.requestAnimationFrame ||
+  global.webkitRequestAnimationFrame ||
+  global.mozRequestAnimationFrame ||
+  global.msRequestAnimationFrame ||
+  global.oRequestAnimationFrame ||
+  (global.setImmediate ? function(fn, el) {
+    setImmediate(fn)
+  } :
+  function(fn, el) {
+    setTimeout(fn, 0)
+  })
+
+function raf(el) {
+  var now = raf.now()
+    , ee = new EE
+
+  ee.pause = function() { ee.paused = true }
+  ee.resume = function() { ee.paused = false }
+
+  _raf(iter, el)
+
+  return ee
+
+  function iter(timestamp) {
+    var _now = raf.now()
+      , dt = _now - now
+    
+    now = _now
+
+    ee.emit('data', dt)
+
+    if(!ee.paused) {
+      _raf(iter, el)
+    }
+  }
+}
+
+raf.polyfill = _raf
+raf.now = function() { return Date.now() }
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/raf/index.js","/../../node_modules/voxel-engine/node_modules/raf")
+},{"events":9,"__browserify_process":1}],22:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = function(field, tilesize, dimensions, offset) {
+  dimensions = dimensions || [ 
+    Math.sqrt(field.length) >> 0
+  , Math.sqrt(field.length) >> 0
+  , Math.sqrt(field.length) >> 0
+  ] 
+
+  offset = offset || [
+    0
+  , 0
+  , 0
+  ]
+
+  field = typeof field === 'function' ? field : function(x, y, z) {
+    return this[x + y * dimensions[1] + (z * dimensions[1] * dimensions[2])]
+  }.bind(field) 
+
+  var coords
+
+  coords = [0, 0, 0]
+
+  return collide
+
+  function collide(box, vec, oncollision) {
+    if(vec[0] === 0 && vec[1] === 0 && vec[2] === 0) return
+
+    // collide x, then y
+    collideaxis(0)
+    collideaxis(1)
+    collideaxis(2)
+
+    function collideaxis(i_axis) {
+      var j_axis = (i_axis + 1) % 3
+        , k_axis = (i_axis + 2) % 3 
+        , posi = vec[i_axis] > 0
+        , leading = box[posi ? 'max' : 'base'][i_axis] 
+        , dir = posi ? 1 : -1
+        , i_start = Math.floor(leading / tilesize)
+        , i_end = (Math.floor((leading + vec[i_axis]) / tilesize)) + dir
+        , j_start = Math.floor(box.base[j_axis] / tilesize)
+        , j_end = Math.ceil(box.max[j_axis] / tilesize)
+        , k_start = Math.floor(box.base[k_axis] / tilesize) 
+        , k_end = Math.ceil(box.max[k_axis] / tilesize)
+        , done = false
+        , edge_vector
+        , edge
+        , tile
+
+      // loop from the current tile coord to the dest tile coord
+      //    -> loop on the opposite axis to get the other candidates
+      //      -> if `oncollision` return `true` we've hit something and
+      //         should break out of the loops entirely.
+      //         NB: `oncollision` is where the client gets the chance
+      //         to modify the `vec` in-flight.
+      // once we're done translate the box to the vec results
+
+      var step = 0
+      for(var i = i_start; !done && i !== i_end; ++step, i += dir) {
+        if(i < offset[i_axis] || i >= dimensions[i_axis]) continue
+        for(var j = j_start; !done && j !== j_end; ++j) {
+          if(j < offset[j_axis] || j >= dimensions[j_axis]) continue
+          for(var k = k_start; k !== k_end; ++k) {
+            if(k < offset[k_axis] || k >= dimensions[k_axis]) continue
+            coords[i_axis] = i
+            coords[j_axis] = j
+            coords[k_axis] = k
+            tile = field.apply(field, coords)
+
+            if(tile === undefined) continue
+
+            edge = dir > 0 ? i * tilesize : (i + 1) * tilesize
+            edge_vector = edge - leading
+
+            if(oncollision(i_axis, tile, coords, dir, edge_vector)) {
+              done = true
+              break
+            }
+          } 
+        }
+      }
+
+      coords[0] = coords[1] = coords[2] = 0
+      coords[i_axis] = vec[i_axis]
+      box.translate(coords)
+    }
+  }  
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/collide-3d-tilemap/index.js","/../../node_modules/voxel-engine/node_modules/collide-3d-tilemap")
+},{"__browserify_process":1}],28:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = pin
+
+var pins = {}
+  , stack_holder = {}
+  , pin_holder
+
+function make_pin_for(name, obj) {
+  var container = document.createElement('div')
+    , header = document.createElement('h4')
+    , body = document.createElement('pre')
+
+  container.style.background = 'white'
+  container.style.marginBottom = '4px'
+  container.appendChild(header)
+  container.appendChild(body)
+  header.textContents = header.innerText = obj && obj.repr ? obj.repr() : name
+  body.style.padding = '8px'
+
+
+  if(!pin_holder) {
+    pin_holder = document.createElement('div')
+    pin_holder.style.position = 'absolute'
+    pin_holder.style.top =
+    pin_holder.style.right = '4px'
+
+    document.body.appendChild(pin_holder)
+  }
+
+  pin_holder.appendChild(container)
+
+  return (pins[name] = pins[name] || []).push({body: body, last: -Infinity, for_object: obj}), pins[name]
+}
+
+function update_pin(item, into, retain, depth) {
+  if(!retain) into.innerHTML = ''
+  if(depth > 1) return
+  depth = depth || 0
+
+  switch(typeof item) {
+    case 'number': into.innerText += item.toFixed(3); break
+    case 'string': into.innerText += '"'+item+'"'; break
+    case 'undefined':
+    case 'object':
+      if(item) {
+        for(var key in item) if(item.hasOwnProperty(key)) {
+          into.innerText += key +':'
+          update_pin(item[key], into, true, depth+1)
+          into.innerText += '\n'
+        } 
+        break
+      }
+    case 'boolean': into.innerText += ''+item; break
+  }  
+}
+
+function pin(item, every, obj, name) {
+  if(!name) Error.captureStackTrace(stack_holder)
+  var location = name || stack_holder.stack.split('\n').slice(2)[0].replace(/^\s+at /g, '')
+    , target = pins[location] || make_pin_for(location, obj)
+    , now = Date.now()
+    , every = every || 0
+
+  if(arguments.length < 3) target = target[0]
+  else {
+    for(var i = 0, len = target.length; i < len; ++i) {
+    if(target[i].for_object === obj) {
+      target = target[i]
+      break   
+    }
+  }
+    if(i === len) {
+      pins[location].push(target = make_pin_for(location, obj))
+    }
+  }
+
+  if(now - target.last > every) {
+    update_pin(item, target.body)
+    target.last = now 
+  }
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/pin-it/index.js","/../../node_modules/voxel-engine/node_modules/pin-it")
 },{"__browserify_process":1}],24:[function(require,module,exports){(function(process,global,__filename,__dirname){/**
  * @fileoverview gl-matrix - High performance matrix and vector operations
  * @author Brandon Jones
@@ -48226,88 +48311,6 @@ if(typeof(exports) !== 'undefined') {
 })();
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/gl-matrix/dist/gl-matrix.js","/../../node_modules/voxel-engine/node_modules/gl-matrix/dist")
-},{"__browserify_process":1}],28:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = pin
-
-var pins = {}
-  , stack_holder = {}
-  , pin_holder
-
-function make_pin_for(name, obj) {
-  var container = document.createElement('div')
-    , header = document.createElement('h4')
-    , body = document.createElement('pre')
-
-  container.style.background = 'white'
-  container.style.marginBottom = '4px'
-  container.appendChild(header)
-  container.appendChild(body)
-  header.textContents = header.innerText = obj && obj.repr ? obj.repr() : name
-  body.style.padding = '8px'
-
-
-  if(!pin_holder) {
-    pin_holder = document.createElement('div')
-    pin_holder.style.position = 'absolute'
-    pin_holder.style.top =
-    pin_holder.style.right = '4px'
-
-    document.body.appendChild(pin_holder)
-  }
-
-  pin_holder.appendChild(container)
-
-  return (pins[name] = pins[name] || []).push({body: body, last: -Infinity, for_object: obj}), pins[name]
-}
-
-function update_pin(item, into, retain, depth) {
-  if(!retain) into.innerHTML = ''
-  if(depth > 1) return
-  depth = depth || 0
-
-  switch(typeof item) {
-    case 'number': into.innerText += item.toFixed(3); break
-    case 'string': into.innerText += '"'+item+'"'; break
-    case 'undefined':
-    case 'object':
-      if(item) {
-        for(var key in item) if(item.hasOwnProperty(key)) {
-          into.innerText += key +':'
-          update_pin(item[key], into, true, depth+1)
-          into.innerText += '\n'
-        } 
-        break
-      }
-    case 'boolean': into.innerText += ''+item; break
-  }  
-}
-
-function pin(item, every, obj, name) {
-  if(!name) Error.captureStackTrace(stack_holder)
-  var location = name || stack_holder.stack.split('\n').slice(2)[0].replace(/^\s+at /g, '')
-    , target = pins[location] || make_pin_for(location, obj)
-    , now = Date.now()
-    , every = every || 0
-
-  if(arguments.length < 3) target = target[0]
-  else {
-    for(var i = 0, len = target.length; i < len; ++i) {
-    if(target[i].for_object === obj) {
-      target = target[i]
-      break   
-    }
-  }
-    if(i === len) {
-      pins[location].push(target = make_pin_for(location, obj))
-    }
-  }
-
-  if(now - target.last > every) {
-    update_pin(item, target.body)
-    target.last = now 
-  }
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/pin-it/index.js","/../../node_modules/voxel-engine/node_modules/pin-it")
 },{"__browserify_process":1}],31:[function(require,module,exports){(function(process,global,__filename,__dirname){// incidentally, does shrubs too :-)
 var Treelib = function(tree) {
 	var self = {};

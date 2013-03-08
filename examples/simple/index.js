@@ -50,6 +50,9 @@ function createBox() {
 }
 
 function launch() {
+  setTimeout(function() {
+    physi.done = true
+  }, 10000)
   var CANNON = physi.CANNON
   // Box
   var boxShape = new CANNON.Box(new CANNON.Vec3(0.5,5,0.5));
@@ -58,7 +61,9 @@ function launch() {
   var position = game.camera.position.clone()
   b1.position.set(position.x, position.y, position.z);
   b1.velocity.set(0,0.5,0);
-  b1.angularVelocity.set(Math.random(), Math.random(), Math.random())
+  b1.angularVelocity.set(Math.random() * Math.random(),
+                         Math.random() * Math.random(),
+                         Math.random() *  Math.random())
   b1.linearDamping=0.01;
   b1.angularDamping=0.01;
 
@@ -129,8 +134,8 @@ setTimeout(function() {
   game.paused = false
 }, 1000)
 
-game.camera.position.set(1.942604445282342, 12.23094305038278, 3.9691374481227792)
-
+game.camera.position.set(0, 5, 0)
+//game.camera.
 game.appendTo(document.body)
 window.game = game
 
@@ -154,11 +159,11 @@ function FirstPersonControls( object, domElement ) {
 	this.domElement = ( domElement !== undefined ) ? domElement : document;
 
 	this.movementSpeed = 0.7;
-	this.lookSpeed = 0.01;
+	this.lookSpeed = 0.02;
 
 	this.lookVertical = true;
 	this.autoForward = false;
-   this.invertVertical = true;
+  this.invertVertical = true;
 
 	this.activeLook = true;
 

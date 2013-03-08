@@ -113,13 +113,13 @@ Physics.prototype.addCollider = function addCollider(position) {
   var collider = new CANNON.RigidBody(0, boxShape);
   collider.position.set(position[0], position[1], position[2])
 
-  //var mesh = new this.game.THREE.Mesh(
-    //new this.game.THREE.CubeGeometry(1,1,1),
-    //new this.game.THREE.MeshBasicMaterial( { color: 0xff0000 })//, wireframe: true } )
-  //)
-  //mesh.scale.set(1.01, 1.01, 1.01)
-  //mesh.position.set(position[0], position[1], position[2])
-  //this.game.scene.add(mesh)
+  var mesh = new this.game.THREE.Mesh(
+    new this.game.THREE.CubeGeometry(1,1,1),
+    new this.game.THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } )
+  )
+  mesh.scale.set(1.01, 1.01, 1.01)
+  mesh.position.set(position[0], position[1], position[2])
+  this.game.scene.add(mesh)
 
   //this.add(mesh, collider)
   this.colliders.push(collider)

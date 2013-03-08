@@ -1,9 +1,11 @@
 'use strict'
 
-var createGame = require('voxel-engine')
+var Game = require('voxel-engine')
 var textures = require('painterly-textures')
 
-var game = createGame({
+Game.prototype.initializeControls = Game.prototype.hookupControls = function() {}
+
+var game = new Game({
 	generate: function(x, y, z) {
     //if (y == -1) return 1
     //if (y < 0 && y > -5 && x < 10 && x > 0 && z < 10 && z > 0) return 0
@@ -16,9 +18,7 @@ var game = createGame({
   chunkSize: 16,
   chunkDistance: 1,
 })
-
 game.gravity = [0, -0.98, 0]
-
 
 var Physics = require('../../')
 var physi = window.physi = Physics(game)
@@ -27,8 +27,6 @@ var groundShape = new physi.CANNON.Plane();
 var groundBody = new physi.CANNON.RigidBody(0, groundShape);
 groundBody.quaternion.setFromAxisAngle(new physi.CANNON.Vec3(-1,0,0),Math.PI/2);
 groundBody.position.set(0,-5,0);
-//groundBody.quaternion.set(1, 0, 1, 0)
-
 
 physi.world.add(groundBody);
 

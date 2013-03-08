@@ -31,8 +31,6 @@ function around(pos) {
 }
 
 function findCollisions(game, physics) {
-  //var blockCache = {}
-  //physics
   for (var i = 0; i < physics.items.length; i++) {
     var item = physics.items[i]
     var posArr = item.mesh.position
@@ -74,9 +72,6 @@ function createWorld(opts) {
   world.quatNormalizeFast = true;
   world.quatNormalizeSkip = 4;
 
-  //world.solver.tolerance = 0.0001;
-  //world.defaultContactMaterial.contactEquationStiffness = 1e6;
-  //world.defaultContactMaterial.contactEquationRegularizationTime = 10;
   world.defaultContactMaterial.contactEquationStiffness = 5e6;
   world.defaultContactMaterial.contactEquationRegularizationTime = 10;
   world.allowSleep = false;
@@ -84,20 +79,14 @@ function createWorld(opts) {
 }
 
 Physics.prototype.addCollider = function addCollider(position) {
-  //debugger
-  //addCollider.count = addCollider.count + 1 || 0
   position[0] += 0.5
   position[1] += 0.5
   position[2] += 0.5
   var colliders = this.colliders
   var alreadyCollider = addCollider.alreadyCollider = addCollider.alreadyCollider || function alreadyCollider(x, y, z) {
-      if (colliders.length > 150) {
-        //debugger
-      }
       for (var i = 0; i < colliders.length; i++) {
         var c = colliders[i]
         if (c.position.almostEquals(new CANNON.Vec3(x, y, z))) {
-          //debugger
           return true
         }
       }
@@ -105,7 +94,6 @@ Physics.prototype.addCollider = function addCollider(position) {
   }
 
   if (alreadyCollider(position[0], position[1], position[2])) {
-    //debugger
     return
   }
 
@@ -120,10 +108,8 @@ Physics.prototype.addCollider = function addCollider(position) {
   mesh.position.set(position[0], position[1], position[2])
   this.game.scene.add(mesh)
 
-  //this.add(mesh, collider)
   this.colliders.push(collider)
   this.world.add(collider)
-  //console.log('colliders', this.colliders.length)
 }
 
 Physics.prototype.add = function add(mesh, body) {
@@ -135,7 +121,6 @@ Physics.prototype.add = function add(mesh, body) {
 }
 
 Physics.prototype.tick = function tick(dt) {
-  //debugger
   this.world.step(dt);
   for (var i = 0; i < this.items.length; i++) {
     var item = this.items[i]
@@ -144,90 +129,6 @@ Physics.prototype.tick = function tick(dt) {
 }
 
 function update(mesh, body) {
-  //debugger
   body.position.copy(mesh.position);
   body.quaternion.copy(mesh.quaternion);
-  //console.log(body.quaternion)
-}
-
-Physics.prototype.shape2mesh = function shape2mesh(shape, material){
-  var THREE = this.game.THREE
-  var wireframe = false //= settings.renderMode=="wireframe";
-  var mesh;
-  switch (shape.type) {
-    case CANNON.Shape.types.SPHERE:
-      var sphere_geometry = new THREE.SphereGeometry( shape.radius, 8, 8);
-      mesh = new THREE.Mesh( sphere_geometry, material );
-      break;
-
-    case CANNON.Shape.types.PLANE:
-      var geometry = new THREE.PlaneGeometry( 10, 10 , 4 , 4 );
-      mesh = new THREE.Object3D();
-      var submesh = new THREE.Object3D();
-      var ground = new THREE.Mesh( geometry, material );
-      ground.scale = new THREE.Vector3(100,100,100);
-      submesh.add(ground);
-
-      ground.castShadow = true;
-      ground.receiveShadow = true;
-
-      mesh.add(submesh);
-      break;
-
-    case CANNON.Shape.types.BOX:
-      var box_geometry = new THREE.CubeGeometry(shape.halfExtents.x*2, shape.halfExtents.y*2, shape.halfExtents.z*2);
-      mesh = new THREE.Mesh( box_geometry, material );
-      break;
-
-    case CANNON.Shape.types.CONVEXPOLYHEDRON:
-      var verts = [];
-
-      for (var i = 0; i < shape.vertices.length; i++){
-        verts.push(new THREE.Vector3(shape.vertices[i].x, shape.vertices[i].y, shape.vertices[i].z));
-      }
-
-      var geo = new THREE.ConvexGeometry(verts);
-      mesh = new THREE.Mesh( geo, material );
-      break;
-
-    case CANNON.Shape.types.COMPOUND:
-      // recursive compounds
-      var o3d = new THREE.Object3D();
-      for (var i = 0; i < shape.childShapes.length; i++){
-        // Get child information
-        var subshape = shape.childShapes[i];
-        var o = shape.childOffsets[i];
-        var q = shape.childOrientations[i];
-
-        var submesh = shape2mesh(subshape);
-        submesh.position.set(o.x,o.y,o.z);
-        submesh.quaternion.set(q.x,q.y,q.z,q.w);
-
-        submesh.useQuaternion = true;
-        o3d.add(submesh);
-        mesh = o3d;
-      }
-      break;
-
-    default:
-      throw "Visual type not recognized: "+shape.type;
-  }
-
-  //mesh.receiveShadow = true;
-  //mesh.castShadow = true;
-
-  //if(mesh.children){
-    //for(var i=0; i<mesh.children.length; i++){
-      //mesh.children[i].castShadow = true;
-      //mesh.children[i].receiveShadow = true;
-      //if(mesh.children[i]){
-        //for(var j=0; j<mesh.children[i].length; j++){
-          //mesh.children[i].children[j].castShadow = true;
-          //mesh.children[i].children[j].receiveShadow = true;
-        //}
-      //}
-    //}
-  //}
-  mesh.useQuaternion = true
-  return mesh;
 }

@@ -43,9 +43,6 @@ function findConvexBox(check, startPos, endPos, fn) {
           box.height = y - startPos.y
           found = true
         }
-        //} else {
-        //box.points.push({x: x, y: y, z: z})
-        //}
       }
     }
   }
@@ -72,9 +69,7 @@ findConvexBox.all = function(check, startPos, endPos, done) {
         if (result) {
           done(result)
           results.push(result)
-          //console.info('result: ', result)
         }
-        //console.log('no result: ', x, y, z)
       }
     }
   }

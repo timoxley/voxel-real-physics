@@ -7,11 +7,8 @@ Game.prototype.initializeControls = Game.prototype.hookupControls = function() {
 
 var game = new Game({
 	generate: function(x, y, z) {
-    //if (y == -1) return 1
-    //if (y < 0 && y > -5 && x < 10 && x > 0 && z < 10 && z > 0) return 0
     var val = y + 3 * Math.sin(z / 4)
     if (val < -1 && val > -5) return 1
-    //if (z = 0 && y <= 1) return 6
 		return 0
 	},
 	texturePath: '../../node_modules/painterly-textures/textures/',
@@ -49,24 +46,18 @@ function createBox() {
 
 function launch() {
   var CANNON = physi.CANNON
-  // Box
+
   var boxShape = new CANNON.Box(new CANNON.Vec3(0.5,5,0.5));
   var b1 = new CANNON.RigidBody(1000, boxShape);
 
   var position = game.camera.position.clone()
   b1.position.set(position.x, position.y, position.z);
-  //b1.velocity.set(0,0.5,0);
   b1.angularVelocity.set(Math.random() * Math.random(),
                          Math.random() * Math.random(),
                          Math.random() *  Math.random())
   b1.linearDamping=0.1;
   b1.angularDamping=0.1;
 
-  //b1.allowSleep = false;
-
-  // Sleep parameters
-  //b1.sleepSpeedLimit = 0.2; // Body will feel sleepy if speed<1 (speed == norm of velocity)
-  //b1.sleepTimeLimit = 1; // Body falls asleep after 1s of sleepiness
   var mesh = createBox() //physi.shape2mesh(boxShape, game.materials.get('brick'))
   mesh.position = position.clone()
   game.scene.add(mesh);
@@ -75,53 +66,9 @@ function launch() {
   game.scene.add(mesh);
 
   setTimeout(function() {
-    console.log('initi tck')
+    console.log('add item to world:', b1)
     physi.add(mesh, b1)
-    //game.on('tick', function(dt) {
-      //debugger
-      //physi.world.step(dt/1000);
-      // Copy coordinates from Cannon.js to Three.js
-
-    //})
   }, 4000)
-  //var mesh = createBox()
-  //mesh.rotation.z = Math.random() * Math.PI * 2
-  //mesh.rotation.x = Math.random() * Math.PI * 2
-  //mesh.rotation.y = Math.random() * Math.PI * 2
-  //var position = game.camera.position.clone()
-  ////plot.prev = position
-  //mesh.position.z = position.z
-  //mesh.position.y = position.y
-  //mesh.position.x = position.x
-  //physi.world.add()
-  //// create a mesh and set the matertial
-  //var mesh = new physi.BoxMesh(
-    //new game.THREE.CubeGeometry(1, 1, 2), // width, height, depth
-    //physi.createMaterial(
-      //new game.THREE.MeshFaceMaterial(material),
-      //.4, // medium friction
-      //0.2 // medium restitution
-    //), 10
-  //);
-  //mesh.rotation.z = Math.random() * Math.PI * 2
-  //mesh.rotation.x = Math.random() * Math.PI * 2
-  //mesh.rotation.y = Math.random() * Math.PI * 2
-  ////document
-  //var ray = game.raycast()
-  //var position = game.camera.position.clone()
-  ////plot.prev = position
-  //mesh.position.z = position.z
-  //mesh.position.y = position.y
-  //mesh.position.x = position.x
-  ////mesh.addEventListener('collision', function() {
-    //////console.log('collision', arguments)
-  ////})
-  //setTimeout(function() {
-    //var direction = game.cameraVector()
-    //mesh.applyImpulse(new THREE.Vector3(direction[0], direction[1], direction[2]).multiplySelf({x: 200, y: 200, z: 200}), new THREE.Vector3( 0, 0, 0 ))
-  //}, 100)
-  //game.scene.add(mesh)
-  //meshes.push(mesh)
 }
 window.meshes = []
 
@@ -130,7 +77,6 @@ setTimeout(function() {
 }, 1000)
 
 game.camera.position.set(0, 5, 0)
-//game.camera.
 game.appendTo(document.body)
 window.game = game
 

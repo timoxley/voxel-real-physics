@@ -12,8 +12,6 @@
   "dependencies": {
     "voxel-engine": "git://github.com/maxogden/voxel-engine.git",
     "painterly-textures": "~0.0.3",
-    "cannon": "~0.5.0",
-    "memoize": "~0.1.1",
-    "memoizer": "0.0.5"
+    "cannon": "git://github.com/schteppe/cannon.js.git#dev"
   }
 }

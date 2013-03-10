@@ -51,7 +51,110 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],2:[function(require,module,exports){(function(process,global,__filename,__dirname){'use strict'
+},{}],2:[function(require,module,exports){(function(process,global,__filename,__dirname){function findConvexBox(check, startPos, endPos, fn) {
+  var box = {
+    x: startPos.x,
+    y: startPos.y,
+    z: startPos.z,
+    width: 0,
+    height: 0,
+    depth: 0,
+    points: []
+  }
+  if (!check(startPos.x, startPos.y, startPos.z)) {
+    return false
+  }
+  for (var x = startPos.x; x < endPos.x + 1; x++) {
+    var y = startPos.y
+    var z = startPos.z
+    if (!check(x, y, z)) {
+      box.width = x - startPos.x
+      break
+    } else {
+      box.points.push({x: x, y: y, z: z})
+    }
+
+  }
+  var found = false
+  for (var z = startPos.z + 1; !found && z < endPos.z + 1; z++) {
+    for (var x = startPos.x; !found && x < startPos.x + box.width; x++) {
+      var y = startPos.y
+      if (!check(x, y, z)) {
+        box.depth = z - startPos.z
+        found = true
+      } else {
+        box.points.push({x: x, y: y, z: z})
+      }
+    }
+  }
+
+  var found = false
+  for (var z = startPos.y + 1; !found && y < endPos.y + 1; y++) {
+  for (var x = startPos.x; !found && x < startPos.x + box.width; x++) {
+    for (var z = startPos.z; !found && z < startPos.z + box.depth; z++) {
+        if (!check(x, y, z)) {
+          box.height = y - startPos.y
+          found = true
+        }
+        //} else {
+        //box.points.push({x: x, y: y, z: z})
+        //}
+      }
+    }
+  }
+
+  if (box.width == 0) box.width = 1;
+  if (box.height == 0) box.height = 1;
+  if (box.depth == 0) box.depth = 1;
+
+  box.x = startPos.x + box.width / 2
+  box.y = startPos.y + box.height / 2
+  box.z = startPos.z + box.depth / 2
+  return box
+}
+
+findConvexBox.all = function(check, startPos, endPos, done) {
+  var results = []
+  var x = 0
+  var y = 0
+  var z = 0
+  for (var x = startPos.x; x < endPos.x; x++) {
+    for (var y = startPos.y; y < endPos.y; y++) {
+      for (var z = startPos.z; z < endPos.z; z++) {
+        var result = findConvexBox(check, {x: x, y: y, z: z}, endPos)
+        if (result) {
+          done(result)
+          results.push(result)
+          //console.info('result: ', result)
+        }
+        //console.log('no result: ', x, y, z)
+      }
+    }
+  }
+  return results
+}
+
+
+findConvexBox.voxelsIn = function voxelsIn(box) {
+  var boxX = box.x - box.width / 2
+  var boxY = box.y - box.height / 2
+  var boxZ = box.z - box.depth / 2
+
+  var points = []
+  for (var x = boxX; x < boxX + box.width; x++) {
+    for (var y = boxY; y < boxY + box.height; y++) {
+      for (var z = boxZ; z < boxZ + box.depth; z++) {
+        points.push({x: x, y: y, z: z})
+      }
+    }
+  }
+  return points
+}
+
+module.exports = findConvexBox
+
+})(require("__browserify_process"),window,"/../../merge.js","/../..")
+},{"__browserify_process":1}],3:[function(require,module,exports){(function(process,global,__filename,__dirname){'use strict'
 
 var Game = require('voxel-engine')
 var textures = require('painterly-textures')
@@ -62,21 +165,21 @@ var game = new Game({
 	generate: function(x, y, z) {
     //if (y == -1) return 1
     //if (y < 0 && y > -5 && x < 10 && x > 0 && z < 10 && z > 0) return 0
-    var val = y + 3 * Math.sin(x / 4)
+    var val = y + 3 * Math.sin(z / 4)
     if (val < -1 && val > -5) return 1
     //if (z = 0 && y <= 1) return 6
 		return 0
 	},
 	texturePath: '../../node_modules/painterly-textures/textures/',
   chunkSize: 16,
-  chunkDistance: 1,
+  chunkDistance: 0,
 })
 game.gravity = [0, -0.98, 0]
 
 var Physics = require('../../')
 var physi = window.physi = Physics(game)
 
-var groundShape = new physi.CANNON.Plane();
+var groundShape = new physi.CANNON.Plane()//new physi.CANNON.Vec3(-1,0,0));
 var groundBody = new physi.CANNON.RigidBody(0, groundShape);
 groundBody.quaternion.setFromAxisAngle(new physi.CANNON.Vec3(-1,0,0),Math.PI/2);
 groundBody.position.set(0,-5,0);
@@ -104,16 +207,16 @@ function launch() {
   var CANNON = physi.CANNON
   // Box
   var boxShape = new CANNON.Box(new CANNON.Vec3(0.5,5,0.5));
-  var b1 = new CANNON.RigidBody(5, boxShape);
+  var b1 = new CANNON.RigidBody(1000, boxShape);
 
   var position = game.camera.position.clone()
   b1.position.set(position.x, position.y, position.z);
-  b1.velocity.set(0,0.5,0);
+  //b1.velocity.set(0,0.5,0);
   b1.angularVelocity.set(Math.random() * Math.random(),
                          Math.random() * Math.random(),
                          Math.random() *  Math.random())
-  b1.linearDamping=0.01;
-  b1.angularDamping=0.01;
+  b1.linearDamping=0.1;
+  b1.angularDamping=0.1;
 
   //b1.allowSleep = false;
 
@@ -478,10 +581,11 @@ function FirstPersonControls( object, domElement ) {
 };
 
 })(require("__browserify_process"),window,"/index.js","/")
-},{"../../":3,"painterly-textures":4,"voxel-engine":5,"__browserify_process":1}],3:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict"
+},{"../../":4,"painterly-textures":5,"voxel-engine":6,"__browserify_process":1}],4:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict"
 
 var CANNON = require('cannon')
 var memoize = require('memoizer')
+//var AMMO = require('./ammo')
 
 module.exports = function(game) {
   var physics = new Physics(game.THREE, {
@@ -491,46 +595,163 @@ module.exports = function(game) {
   game.on('tick', function(dt) {
     dt = dt > 300 ? 300 : dt
     physics.tick(dt/200)
-    if (!physics.done) findCollisions(game, physics)
+
+    //if (!physics.done) findCollisions(game, physics)
   })
   physics.game = game
-
+  //physics.AMMO = AMMO
+  physics.createPhysicsEntities(game.camera.position)
   return physics
 }
 
-function around(pos) {
-  var positions = []
-  for (var i = -1; i < 2; i++) {
-    for (var j = -1; j < 2; j++) {
-      for (var k = -1; k < 2; k++) {
-        positions.push([pos[0] + i, pos[1] + j, pos[2] + k])
-      }
-    }
+//function findSolid(chunk) {
+  //for (var x = 0; x < chunk.dims.x; x++) {
+    //for (var y = 0; y < chunk.dims.y; y++) {
+      //for (var z = 0; z < chunk.dims.z; z++) {
+
+      //}
+    //}
+  //}
+  //return false
+//}
+
+//function findBoxDimensions(game, startPos, endPos) {
+  //var box = {
+    //x: startPos.x,
+    //y: startPos.y,
+    //z: startPos.z,
+    //width: 1,
+    //height: 1,
+    //depth: 1
+  //}
+  //for (var x = startPos.x; x < endPos.x; x++) {
+    //if (game.getBlock(x, startPos.y, startPos.z) !== 1) {
+      //box.width = x - startPos.x
+      //break
+    //}
+    ////for (var y = startPos.y; y < endPos.y; y++) {
+      ////for (var z = startPos.z; z < endPos.z; z++) {
+          ////box.height = y - startPos.y
+          ////box.depth = z - startPos.z
+          ////box.x = startPos.x + box.width / 2
+          ////box.y = startPos.y + box.height / 2
+          ////box.z = startPos.z + box.depth / 2
+
+          ////game.setBlock([x, y, z], 2)
+        ////} else {
+          ////return box
+        ////}
+      ////}
+    ////}
+  //}
+//}
+
+var merge = require('./merge')
+
+Physics.prototype.createPhysicsEntities = function createPhysicsEntities(position) {
+  var self = this
+  var game = this.game
+  var chunk = game.getChunkAtPosition([position.x, position.y, position.z])
+  var startPos =  {
+    x: chunk.position[0] - chunk.dims[0] * 2,
+    y: chunk.position[1] - chunk.dims[1] * 2,
+    z: chunk.position[2] - chunk.dims[2] * 2
   }
-  return positions
+
+  var endPos = {
+    x: chunk.position[0] + chunk.dims[0] * 2,
+    y: chunk.position[1] + chunk.dims[1] * 2,
+    z: chunk.position[2] + chunk.dims[2] * 2
+  }
+
+  //var boxShape = new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5))
+  //debugger
+  merge.all(function(x, y, z) {
+    return game.getBlock([x, y, z]) === 1
+  }, startPos, endPos, function(result) {
+    merge.voxelsIn(result).forEach(function(pos) {
+      game.setBlock([pos.x, pos.y, pos.z], 2)
+    })
+
+    var boxShape = new CANNON.Box(new CANNON.Vec3(result.width / 2, result.height / 2, result.depth / 2))
+    var box = new CANNON.RigidBody(0, boxShape)
+    box.position.set(result.x, result.y, result.z)
+    self.world.add(box);
+
+    var mesh = new game.THREE.Mesh(
+      new game.THREE.CubeGeometry(result.width,result.height,result.depth),
+      new game.THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } )
+    )
+    mesh.position.set(result.x, result.y, result.z)
+    game.scene.add(mesh)
+
+  })
+  //var game = this.game
+  //var world = this.game
+  //var boxShape = new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5))
+  //var chunk = game.getChunkAtPosition(position)
+  //var foundSolid = findSolid(chunk)
+  //if (foundSolid) {
+  //var endPos = {
+  //x: foundSolid.x - chunk.position[0] - chunk.dims[0]
+  //y: foundSolid.y - chunk.position[1] - chunk.dims[1]
+  //z: foundSolid.z - chunk.position[2] - chunk.dims[2]
+  //}
+  //var boxInfo = findBoxDimensions(game, foundSolid, endPos)
+  //var box = new CANNON.RigidBody(0, boxShape);
+  //box.position.set(boxInfo.x, boxInfo.y, boxInfo.z)
+  //this.world.add(box)
+
+  //var mesh = new this.game.THREE.Mesh(
+  //new this.game.THREE.CubeGeometry(1,1,1),
+  //new this.game.THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } )
+  //)
+  //mesh.position.set()
+  //this.game.scene.add(mesh)
+
+
 }
 
+//Physics.prototype.isPhysical(x,y,z) {
+  //return physical[[x,y,z].join(',')]
+//}
+
+//Physics.prototype.setPhysical(x,y,z) {
+  //return physical[[x,y,z].join(',')] = true
+//}
+
+
+//function around(pos) {
+  //var positions = []
+  //for (var i = -1; i < 2; i++) {
+    //for (var j = -1; j < 2; j++) {
+      //for (var k = -1; k < 2; k++) {
+        //positions.push([pos[0] + i, pos[1] + j, pos[2] + k])
+      //}
+    //}
+  //}
+  //return positions
+//}
+
 function findCollisions(game, physics) {
-  //var blockCache = {}
-  //physics
-  for (var i = 0; i < physics.items.length; i++) {
-    var item = physics.items[i]
-    var posArr = item.mesh.position
-    var pos = [posArr.x, posArr.y, posArr.z]
-    var v = item.body.velocity
-    item.body.calculateAABB()
-    var margin = 0.5
-    for (var x = item.body.aabbmin.x - margin; x < item.body.aabbmax.x + margin; x += 1) {
-      for (var y = item.body.aabbmin.y - margin; y < item.body.aabbmax.y + margin; y += 1) {
-        for (var z = item.body.aabbmin.z - margin; z < item.body.aabbmax.z + margin; z += 1) {
-          if (game.getBlock(x, y, z)) {
-            var bp = game.blockPosition(x, y, z)
-            physics.addCollider(bp)
-          }
-        }
-      }
-    }
-  }
+  //for (var i = 0; i < physics.items.length; i++) {
+    //var item = physics.items[i]
+    //var posArr = item.mesh.position
+    //var pos = [posArr.x, posArr.y, posArr.z]
+    //var v = item.body.velocity
+    //item.body.calculateAABB()
+    //var margin = 0.5
+    //for (var x = item.body.aabbmin.x - margin; x < item.body.aabbmax.x + margin; x += 1) {
+      //for (var y = item.body.aabbmin.y - margin; y < item.body.aabbmax.y + margin; y += 1) {
+        //for (var z = item.body.aabbmin.z - margin; z < item.body.aabbmax.z + margin; z += 1) {
+          //if (game.getBlock(x, y, z)) {
+            //var bp = game.blockPosition(x, y, z)
+            //physics.addCollider(bp[0], bp[1], bp[2])
+          //}
+        //}
+      //}
+    //}
+  //}
 }
 
 function Physics(THREE, opts) {
@@ -540,7 +761,7 @@ function Physics(THREE, opts) {
   this.world = createWorld(opts)
   var self = this
   this.items = []
-  this.colliders = []
+  this.physical = {}
 }
 
 function createWorld(opts) {
@@ -548,46 +769,33 @@ function createWorld(opts) {
   var world = new CANNON.World();
   if (opts.gravity) world.gravity = opts.gravity
   world.broadphase = new CANNON.NaiveBroadphase();
-  world.solver = new CANNON.GSSolver();
-  world.solver.iterations = 4;
+  //world.solver = new CANNON.GSSolver();
+  //world.solver.iterations = 4;
+  var solver = new CANNON.GSSolver();
+  solver.iterations = 5;
+  //world.defaultContactMaterial.contactEquationStiffness = 1e7;
+  world.defaultContactMaterial.contactEquationRegularizationTime = 0.55;
+  solver.tolerance = 0.1;
+  world.solver = new CANNON.SplitSolver(solver);
 
   world.quatNormalizeFast = true;
-  world.quatNormalizeSkip = 4;
+  world.quatNormalizeSkip = 0;
 
-  //world.solver.tolerance = 0.0001;
-  //world.defaultContactMaterial.contactEquationStiffness = 1e6;
-  //world.defaultContactMaterial.contactEquationRegularizationTime = 10;
-  world.defaultContactMaterial.contactEquationStiffness = 5e6;
-  world.defaultContactMaterial.contactEquationRegularizationTime = 10;
+  world.defaultContactMaterial.friction = 0.7
+  world.defaultContactMaterial.restitution = 0.0
+  world.defaultContactMaterial.contactEquationStiffness = 1e7;
+  world.defaultContactMaterial.contactEquationRegularizationTime = 0.5;
   world.allowSleep = false;
   return world
 }
 
-Physics.prototype.addCollider = function addCollider(position) {
-  //debugger
-  //addCollider.count = addCollider.count + 1 || 0
-  position[0] += 0.5
-  position[1] += 0.5
-  position[2] += 0.5
-  var colliders = this.colliders
-  var alreadyCollider = addCollider.alreadyCollider = addCollider.alreadyCollider || function alreadyCollider(x, y, z) {
-      if (colliders.length > 150) {
-        //debugger
-      }
-      for (var i = 0; i < colliders.length; i++) {
-        var c = colliders[i]
-        if (c.position.almostEquals(new CANNON.Vec3(x, y, z))) {
-          //debugger
-          return true
-        }
-      }
-      return false
-  }
-
-  if (alreadyCollider(position[0], position[1], position[2])) {
-    //debugger
-    return
-  }
+Physics.prototype.addCollider = function addCollider(x,y,z) {
+  x += 0.5
+  y += 0.5
+  z += 0.5
+  if (colliders.x === x
+       && colliders.y === y
+       && colliders.z === y) return
 
   var boxShape = new CANNON.Box(new CANNON.Vec3(0.5,0.5,0.5));
   var collider = new CANNON.RigidBody(0, boxShape);
@@ -600,10 +808,8 @@ Physics.prototype.addCollider = function addCollider(position) {
   mesh.position.set(position[0], position[1], position[2])
   this.game.scene.add(mesh)
 
-  //this.add(mesh, collider)
   this.colliders.push(collider)
   this.world.add(collider)
-  //console.log('colliders', this.colliders.length)
 }
 
 Physics.prototype.add = function add(mesh, body) {
@@ -615,7 +821,6 @@ Physics.prototype.add = function add(mesh, body) {
 }
 
 Physics.prototype.tick = function tick(dt) {
-  //debugger
   this.world.step(dt);
   for (var i = 0; i < this.items.length; i++) {
     var item = this.items[i]
@@ -624,96 +829,15 @@ Physics.prototype.tick = function tick(dt) {
 }
 
 function update(mesh, body) {
-  //debugger
   body.position.copy(mesh.position);
   body.quaternion.copy(mesh.quaternion);
-  //console.log(body.quaternion)
 }
 
-Physics.prototype.shape2mesh = function shape2mesh(shape, material){
-  var THREE = this.game.THREE
-  var wireframe = false //= settings.renderMode=="wireframe";
-  var mesh;
-  switch (shape.type) {
-    case CANNON.Shape.types.SPHERE:
-      var sphere_geometry = new THREE.SphereGeometry( shape.radius, 8, 8);
-      mesh = new THREE.Mesh( sphere_geometry, material );
-      break;
 
-    case CANNON.Shape.types.PLANE:
-      var geometry = new THREE.PlaneGeometry( 10, 10 , 4 , 4 );
-      mesh = new THREE.Object3D();
-      var submesh = new THREE.Object3D();
-      var ground = new THREE.Mesh( geometry, material );
-      ground.scale = new THREE.Vector3(100,100,100);
-      submesh.add(ground);
 
-      ground.castShadow = true;
-      ground.receiveShadow = true;
-
-      mesh.add(submesh);
-      break;
-
-    case CANNON.Shape.types.BOX:
-      var box_geometry = new THREE.CubeGeometry(shape.halfExtents.x*2, shape.halfExtents.y*2, shape.halfExtents.z*2);
-      mesh = new THREE.Mesh( box_geometry, material );
-      break;
-
-    case CANNON.Shape.types.CONVEXPOLYHEDRON:
-      var verts = [];
-
-      for (var i = 0; i < shape.vertices.length; i++){
-        verts.push(new THREE.Vector3(shape.vertices[i].x, shape.vertices[i].y, shape.vertices[i].z));
-      }
-
-      var geo = new THREE.ConvexGeometry(verts);
-      mesh = new THREE.Mesh( geo, material );
-      break;
-
-    case CANNON.Shape.types.COMPOUND:
-      // recursive compounds
-      var o3d = new THREE.Object3D();
-      for (var i = 0; i < shape.childShapes.length; i++){
-        // Get child information
-        var subshape = shape.childShapes[i];
-        var o = shape.childOffsets[i];
-        var q = shape.childOrientations[i];
-
-        var submesh = shape2mesh(subshape);
-        submesh.position.set(o.x,o.y,o.z);
-        submesh.quaternion.set(q.x,q.y,q.z,q.w);
-
-        submesh.useQuaternion = true;
-        o3d.add(submesh);
-        mesh = o3d;
-      }
-      break;
-
-    default:
-      throw "Visual type not recognized: "+shape.type;
-  }
-
-  //mesh.receiveShadow = true;
-  //mesh.castShadow = true;
-
-  //if(mesh.children){
-    //for(var i=0; i<mesh.children.length; i++){
-      //mesh.children[i].castShadow = true;
-      //mesh.children[i].receiveShadow = true;
-      //if(mesh.children[i]){
-        //for(var j=0; j<mesh.children[i].length; j++){
-          //mesh.children[i].children[j].castShadow = true;
-          //mesh.children[i].children[j].receiveShadow = true;
-        //}
-      //}
-    //}
-  //}
-  mesh.useQuaternion = true
-  return mesh;
-}
 
 })(require("__browserify_process"),window,"/../../index.js","/../..")
-},{"cannon":6,"memoizer":7,"__browserify_process":1}],4:[function(require,module,exports){(function(process,global,__filename,__dirname){var path = require('path')
+},{"./merge":2,"cannon":7,"memoizer":8,"__browserify_process":1}],5:[function(require,module,exports){(function(process,global,__filename,__dirname){var path = require('path')
 var texturePath = __dirname + '/textures'
 
 module.exports = function(dir) {
@@ -721,7 +845,7 @@ module.exports = function(dir) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/painterly-textures/painterly.js","/../../node_modules/painterly-textures")
-},{"path":8,"__browserify_process":1}],6:[function(require,module,exports){(function(process,global,__filename,__dirname){/*
+},{"path":9,"__browserify_process":1}],7:[function(require,module,exports){(function(process,global,__filename,__dirname){/*
  * Copyright (c) 2012 cannon.js Authors
  * 
  * Permission is hereby granted, free of charge, to any person
@@ -743,7 +867,11 @@ module.exports = function(dir) {
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+
+
 (function () {
+
+
 /**
  * @page About
  * cannon.js is a lightweight 3D physics engine for web applications. For more information and source code, go to the Github repository [schteppe/cannon.js](https://github.com/schteppe/cannon.js).
@@ -758,404 +886,10 @@ module.exports = function(dir) {
 var CANNON = CANNON || {};
 
 // Maintain compatibility with older browsers
-// @todo: check so ordinary Arrays work.
 if(!this.Int32Array){
-  this.Int32Array=Array;
-  this.Float32Array=Array;
-}/*global CANNON:true */
-
-/**
- * @class CANNON.Broadphase
- * @author schteppe
- * @brief Base class for broadphase implementations
- */
-CANNON.Broadphase = function(){
-    /**
-    * @property CANNON.World world
-    * @brief The world to search for collisions in.
-    * @memberof CANNON.Broadphase
-    */
-    this.world = null;
-};
-CANNON.Broadphase.prototype.constructor = CANNON.BroadPhase;
-
-/**
- * @method collisionPairs
- * @memberof CANNON.Broadphase
- * @brief Get the collision pairs from the world
- * @param CANNON.World world The world to search in
- * @return array An array with two subarrays of body indices
- */
-CANNON.Broadphase.prototype.collisionPairs = function(world){
-    throw "collisionPairs not implemented for this BroadPhase class!";
-};
-
-/*global CANNON:true */
-
-/**
- * @class CANNON.NaiveBroadphase
- * @brief Naive broadphase implementation, used in lack of better ones.
- * @description The naive broadphase looks at all possible pairs without restriction, therefore it has complexity N^2 (which is bad)
- * @extends CANNON.Broadphase
- */
- CANNON.NaiveBroadphase = function(){
-    this.temp = {
-        r: new CANNON.Vec3(),
-        normal: new CANNON.Vec3(),
-        quat: new CANNON.Quaternion(),
-        relpos : new CANNON.Vec3(),
-    };
-};
-CANNON.NaiveBroadphase.prototype = new CANNON.Broadphase();
-CANNON.NaiveBroadphase.prototype.constructor = CANNON.NaiveBroadphase;
-
-/**
- * @method collisionPairs
- * @memberof CANNON.NaiveBroadphase
- * @brief Get all the collision pairs in the physics world
- * @param CANNON.World world
- * @return array An array containing two arrays of integers. The integers corresponds to the body indices.
- */
- CANNON.NaiveBroadphase.prototype.collisionPairs = function(world){
-    var pairs1 = [], pairs2 = [];
-    var n = world.numObjects(),
-    bodies = world.bodies;
-
-    // Local fast access
-    var types = CANNON.Shape.types;
-    var BOX_SPHERE_COMPOUND_CONVEX = types.SPHERE | types.BOX | types.COMPOUND | types.CONVEXPOLYHEDRON,
-        PLANE = types.PLANE,
-        STATIC_OR_KINEMATIC = CANNON.Body.STATIC | CANNON.Body.KINEMATIC;
-
-    // Temp vecs
-    var temp = this.temp;
-    var r = temp.r,
-    normal = temp.normal,
-    quat = temp.quat,
-    relpos = temp.relpos;
-
-    // Naive N^2 ftw!
-    for(var i=0; i<n; i++){
-        for(var j=0; j<i; j++){
-            var bi = bodies[i], bj = bodies[j];
-
-            if(((bi.motionstate & STATIC_OR_KINEMATIC)!==0 || bi.isSleeping()) &&
-               ((bj.motionstate & STATIC_OR_KINEMATIC)!==0 || bj.isSleeping())) {
-                // Both bodies are static, kinematic or sleeping. Skip.
-                continue;
-            }
-
-            var bishape = bi.shape, bjshape = bj.shape;
-            if(bishape && bjshape){
-                var ti = bishape.type, tj = bjshape.type;
-
-                // --- Box / sphere / compound / convexpolyhedron collision ---
-                if((ti & BOX_SPHERE_COMPOUND_CONVEX) && (tj & BOX_SPHERE_COMPOUND_CONVEX)){
-                    // Rel. position
-                    bj.position.vsub(bi.position,r);
-
-                    // Update bounding spheres if needed
-                    if(bishape.boundingSphereRadiusNeedsUpdate) bishape.computeBoundingSphereRadius();
-                    if(bjshape.boundingSphereRadiusNeedsUpdate) bjshape.computeBoundingSphereRadius();
-
-                    var boundingRadiusSum = bishape.boundingSphereRadius + bjshape.boundingSphereRadius;
-                    if(r.norm2()<boundingRadiusSum*boundingRadiusSum){
-                        pairs1.push(bi);
-                        pairs2.push(bj);
-                    }
-
-                    // --- Sphere/box/compound/convexpoly versus plane ---
-                } else if((ti & BOX_SPHERE_COMPOUND_CONVEX) && (tj & types.PLANE) || (tj & BOX_SPHERE_COMPOUND_CONVEX) && (ti & types.PLANE)){
-                    var pi = (ti===PLANE) ? i : j, // Plane
-                    oi = (ti!==PLANE) ? i : j; // Other
-                    
-                    // Rel. position
-                    bodies[oi].position.vsub(bodies[pi].position,r);
-                    normal.set(0,0,1);
-                    bodies[pi].quaternion.vmult(normal,normal);
-                    
-                    if(bodies[oi].shape.boundingSphereRadiusNeedsUpdate) bodies[oi].shape.computeBoundingSphereRadius();
-
-                    var q = r.dot(normal) - bodies[oi].shape.boundingSphereRadius;
-                    if(q<0.0){
-                        pairs1.push(bi);
-                        pairs2.push(bj);
-                    }
-                }
-            } else {
-                // Particle without shape
-                if(!bishape && !bjshape){
-                    // No collisions between 2 particles
-                } else {
-                    var particle = bishape ? bj : bi;
-                    var other = bishape ? bi : bj;
-                    var otherShape = other.shape;
-                    var type = otherShape.type;
-
-                    if(type & BOX_SPHERE_COMPOUND_CONVEX){
-                        // todo: particle vs box,compound,convex
-
-                        if(type === types.SPHERE){ // particle-sphere
-                            particle.position.vsub(other.position,relpos);
-                            if(otherShape.radius*otherShape.radius >= relpos.norm2()){
-                                pairs1.push(particle);
-                                pairs2.push(other);
-                            }
-                        } else if(type===types.CONVEXPOLYHEDRON || type===types.BOX || type===types.COMPOUND){
-
-                            if(otherShape.boundingSphereRadiusNeedsUpdate) otherShape.computeBoundingSphereRadius();
-                            var R = otherShape.boundingSphereRadius;
-                            particle.position.vsub(other.position,relpos);
-                            if(R*R >= relpos.norm2()){
-                                pairs1.push(particle);
-                                pairs2.push(other);
-                            }
-                        }
-                    } else if(type === types.PLANE){
-                        // particle/plane
-                        var plane = other;
-                        normal.set(0,0,1);
-                        plane.quaternion.vmult(normal,normal);
-                        particle.position.vsub(plane.position,relpos);
-                        if(normal.dot(relpos)<=0.0){
-                            pairs1.push(particle);
-                            pairs2.push(other);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    return [pairs1,pairs2];
-};
-/*global CANNON:true */
-
-/**
- * @class CANNON.Ray
- * @author Originally written by mr.doob / http://mrdoob.com/ for Three.js. Cannon.js-ified by schteppe.
- * @brief A line in 3D space that intersects bodies and return points.
- * @param CANNON.Vec3 origin
- * @param CANNON.Vec3 direction
- */
-CANNON.Ray = function(origin, direction){
-    /**
-    * @property CANNON.Vec3 origin
-    * @memberof CANNON.Ray
-    */
-    this.origin = origin || new CANNON.Vec3();
-
-    /**
-    * @property CANNON.Vec3 direction
-    * @memberof CANNON.Ray
-    */
-    this.direction = direction || new CANNON.Vec3();
-
-    var precision = 0.0001;
-
-    /**
-     * @method setPrecision
-     * @memberof CANNON.Ray
-     * @param float value
-     * @brief Sets the precision of the ray. Used when checking parallelity etc.
-     */
-    this.setPrecision = function ( value ) {
-        precision = value;
-    };
-
-    var a = new CANNON.Vec3();
-    var b = new CANNON.Vec3();
-    var c = new CANNON.Vec3();
-    var d = new CANNON.Vec3();
-
-    var directionCopy = new CANNON.Vec3();
-
-    var vector = new CANNON.Vec3();
-    var normal = new CANNON.Vec3();
-    var intersectPoint = new CANNON.Vec3()
-
-    /**
-     * @method intersectBody
-     * @memberof CANNON.Ray
-     * @param CANNON.RigidBody body
-     * @brief Shoot a ray at a body, get back information about the hit.
-     * @return Array An array of results. The result objects has properties: distance (float), point (CANNON.Vec3) and body (CANNON.RigidBody).
-     */
-    this.intersectBody = function ( body ) {
-        if(body.shape instanceof CANNON.ConvexPolyhedron){
-            return this.intersectShape(body.shape,
-                                       body.quaternion,
-                                       body.position,
-                                       body);
-        } else if(body.shape instanceof CANNON.Box){
-            return this.intersectShape(body.shape.convexPolyhedronRepresentation,
-                                       body.quaternion,
-                                       body.position,
-                                       body);
-        } else
-            console.warn("Ray intersection is this far only implemented for ConvexPolyhedron and Box shapes.");
-    };
-    
-    /**
-     * @method intersectShape
-     * @memberof CANNON.Ray
-     * @param CANNON.Shape shape
-     * @param CANNON.Quaternion quat
-     * @param CANNON.Vec3 position
-     * @param CANNON.RigidBody body
-     * @return Array See intersectBody()
-     */
-    this.intersectShape = function(shape,quat,position,body){
-
-        var intersect, intersects = [];
-
-        if ( shape instanceof CANNON.ConvexPolyhedron ) {
-            // Checking boundingSphere
-
-            var distance = distanceFromIntersection( this.origin, this.direction, position );
-            if ( distance > shape.boundingSphereRadius() ) {
-                return intersects;
-            }
-
-            // Checking faces
-            var dot, scalar, faces = shape.faces, vertices = shape.vertices, normals = shape.faceNormals;
-
-
-            for ( fi = 0; fi < faces.length; fi++ ) {
-
-                var face = faces[ fi ];
-                var faceNormal = normals[ fi ];
-                var q = quat;
-                var x = position;
-
-                // determine if ray intersects the plane of the face
-                // note: this works regardless of the direction of the face normal
-
-                // Get plane point in world coordinates...
-                vertices[face[0]].copy(vector);
-                q.vmult(vector,vector);
-                vector.vadd(x,vector);
-
-                // ...but make it relative to the ray origin. We'll fix this later.
-                vector.vsub(this.origin,vector);
-
-                // Get plane normal
-                q.vmult(faceNormal,normal);
-
-                // If this dot product is negative, we have something interesting
-                dot = this.direction.dot(normal);
-                
-                // bail if ray and plane are parallel
-                if ( Math.abs( dot ) < precision ) continue;
-
-                // calc distance to plane
-                scalar = normal.dot( vector ) / dot;
-
-                // if negative distance, then plane is behind ray
-                if ( scalar < 0 ) continue;
-
-                if (  dot < 0 ) {
-
-                    // Intersection point is origin + direction * scalar
-                    this.direction.mult(scalar,intersectPoint);
-                    intersectPoint.vadd(this.origin,intersectPoint);
-
-                    // a is the point we compare points b and c with.
-                    vertices[ face[0] ].copy(a);
-                    q.vmult(a,a);
-                    x.vadd(a,a);
-
-                    for(var i=1; i<face.length-1; i++){
-                        // Transform 3 vertices to world coords
-                        vertices[ face[i] ].copy(b);
-                        vertices[ face[i+1] ].copy(c);
-                        q.vmult(b,b);
-                        q.vmult(c,c);
-                        x.vadd(b,b);
-                        x.vadd(c,c);
-                        
-                        if ( pointInTriangle( intersectPoint, a, b, c ) ) {
-
-                            intersect = {
-
-                                distance: this.origin.distanceTo( intersectPoint ),
-                                point: intersectPoint.copy(),
-                                face: face,
-                                body: body
-                            
-                            };
-                            
-                            intersects.push( intersect );
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        return intersects;
-    }
-
-    /**
-     * @method intersectBodies
-     * @memberof CANNON.Ray
-     * @param Array bodies An array of CANNON.RigidBody objects.
-     * @return Array See intersectBody
-     */
-    this.intersectBodies = function ( bodies ) {
-
-        var intersects = [];
-
-        for ( var i = 0, l = bodies.length; i < l; i ++ ) {
-            var result = this.intersectBody( bodies[ i ] );
-            Array.prototype.push.apply( intersects, result );
-        }
-
-        intersects.sort( function ( a, b ) { return a.distance - b.distance; } );
-        return intersects;
-    };
-
-    var v0 = new CANNON.Vec3(), intersect = new CANNON.Vec3();
-    var dot, distance;
-
-    function distanceFromIntersection( origin, direction, position ) {
-
-        // v0 is vector from origin to position
-        position.vsub(origin,v0);
-        dot = v0.dot( direction );
-
-        // intersect = direction*dot + origin
-        direction.mult(dot,intersect);
-        intersect.vadd(origin,intersect);
-        
-        distance = position.distanceTo( intersect );
-
-        return distance;
-    }
-
-    // http://www.blackpawn.com/texts/pointinpoly/default.html
-
-    var dot00, dot01, dot02, dot11, dot12, invDenom, u, v;
-    var v1 = new CANNON.Vec3(), v2 = new CANNON.Vec3();
-
-    function pointInTriangle( p, a, b, c ) {
-        c.vsub(a,v0);
-        b.vsub(a,v1);
-        p.vsub(a,v2);
-
-        dot00 = v0.dot( v0 );
-        dot01 = v0.dot( v1 );
-        dot02 = v0.dot( v2 );
-        dot11 = v1.dot( v1 );
-        dot12 = v1.dot( v2 );
-
-        invDenom = 1 / ( dot00 * dot11 - dot01 * dot01 );
-        u = ( dot11 * dot02 - dot01 * dot12 ) * invDenom;
-        v = ( dot00 * dot12 - dot01 * dot02 ) * invDenom;
-
-        return ( u >= 0 ) && ( v >= 0 ) && ( u + v < 1 );
-    }
-};
-CANNON.Ray.prototype.constructor = CANNON.Ray;
-/*global CANNON:true */
+    this.Int32Array=Array;
+    this.Float32Array=Array;
+}
 
 /**
  * @class CANNON.Mat3
@@ -1269,13 +1003,13 @@ CANNON.Mat3.prototype.smult = function(s){
 CANNON.Mat3.prototype.mmult = function(m){
     var r = new CANNON.Mat3();
     for(var i=0; i<3; i++){
-    for(var j=0; j<3; j++){
-        var sum = 0.0;
-        for(var k=0; k<3; k++){
-        sum += m.elements[i+k*3] * this.elements[k+j*3];
+        for(var j=0; j<3; j++){
+            var sum = 0.0;
+            for(var k=0; k<3; k++){
+                sum += m.elements[i+k*3] * this.elements[k+j*3];
+            }
+            r.elements[i+j*3] = sum;
         }
-        r.elements[i+j*3] = sum;
-    }
     }
     return r;
 };
@@ -1287,16 +1021,18 @@ CANNON.Mat3.prototype.mmult = function(m){
  * @param CANNON.Vec3 b The right hand side
  * @param CANNON.Vec3 target Optional. Target vector to save in.
  * @return CANNON.Vec3 The solution x
+ * @todo should reuse arrays
  */
 CANNON.Mat3.prototype.solve = function(b,target){
-
     target = target || new CANNON.Vec3();
 
     // Construct equations
     var nr = 3; // num rows
     var nc = 4; // num cols
     var eqns = [];
-    for(var i=0; i<nr*nc; i++) eqns.push(0);
+    for(var i=0; i<nr*nc; i++){
+        eqns.push(0);
+    }
     var i,j;
     for(i=0; i<3; i++){
         for(j=0; j<3; j++){
@@ -1311,32 +1047,32 @@ CANNON.Mat3.prototype.solve = function(b,target){
     var n = 3, k = n, np;
     var kp = 4; // num rows
     var p, els;
-do {
-    i = k - n;
-    if (eqns[i+nc*i] === 0) {
-        // the pivot is null, swap lines
-      for (j = i + 1; j < k; j++) {
-        if (eqns[i+nc*j] !== 0) {
-          np = kp;
-          do {  // do ligne( i ) = ligne( i ) + ligne( k )
-            p = kp - np;
-            eqns[p+nc*i] += eqns[p+nc*j]; 
-          } while (--np);
-          break;
+    do {
+        i = k - n;
+        if (eqns[i+nc*i] === 0) {
+            // the pivot is null, swap lines
+            for (j = i + 1; j < k; j++) {
+                if (eqns[i+nc*j] !== 0) {
+                    np = kp;
+                    do {  // do ligne( i ) = ligne( i ) + ligne( k )
+                        p = kp - np;
+                        eqns[p+nc*i] += eqns[p+nc*j];
+                    } while (--np);
+                    break;
+                }
+            }
         }
-      }
-    }
-    if (eqns[i+nc*i] !== 0) {
-      for (j = i + 1; j < k; j++) {
-        var multiplier = eqns[i+nc*j] / eqns[i+nc*i];
-        np = kp;
-        do {  // do ligne( k ) = ligne( k ) - multiplier * ligne( i )
-          p = kp - np;
-          eqns[p+nc*j] = p <= i ? 0 : eqns[p+nc*j] - eqns[p+nc*i] * multiplier ;
-        } while (--np);
-      }
-    }
-  } while (--n);
+        if (eqns[i+nc*i] !== 0) {
+            for (j = i + 1; j < k; j++) {
+                var multiplier = eqns[i+nc*j] / eqns[i+nc*i];
+                np = kp;
+                do {  // do ligne( k ) = ligne( k ) - multiplier * ligne( i )
+                    p = kp - np;
+                    eqns[p+nc*j] = p <= i ? 0 : eqns[p+nc*j] - eqns[p+nc*i] * multiplier ;
+                } while (--np);
+            }
+        }
+    } while (--n);
 
     // Get the solution
     target.z = eqns[2*nc+3] / eqns[2*nc+2];
@@ -1361,10 +1097,10 @@ do {
  */
 CANNON.Mat3.prototype.e = function( row , column ,value){
     if(value===undefined){
-    return this.elements[column+3*row];
+        return this.elements[column+3*row];
     } else {
-    // Set value
-    this.elements[column+3*row] = value;
+        // Set value
+        this.elements[column+3*row] = value;
     }
 };
 
@@ -1409,11 +1145,13 @@ CANNON.Mat3.prototype.reverse = function(target){
 
     target = target || new CANNON.Mat3();
 
-  // Construct equations
+    // Construct equations
     var nr = 3; // num rows
     var nc = 6; // num cols
     var eqns = [];
-    for(var i=0; i<nr*nc; i++) eqns.push(0);
+    for(var i=0; i<nr*nc; i++){
+        eqns.push(0);
+    }
     var i,j;
     for(i=0; i<3; i++){
         for(j=0; j<3; j++){
@@ -1429,77 +1167,77 @@ CANNON.Mat3.prototype.reverse = function(target){
     eqns[5+6*0] = 0;
     eqns[5+6*1] = 0;
     eqns[5+6*2] = 1;
-  
-  // Compute right upper triangular version of the matrix - Gauss elimination
+
+    // Compute right upper triangular version of the matrix - Gauss elimination
     var n = 3, k = n, np;
     var kp = nc; // num rows
     var p;
     do {
-    i = k - n;
-    if (eqns[i+nc*i] === 0) {
-        // the pivot is null, swap lines
-        for (j = i + 1; j < k; j++) {
-        if (eqns[i+nc*j] !== 0) {
-            np = kp;
-            do { // do line( i ) = line( i ) + line( k )
-            p = kp - np;
-            eqns[p+nc*i] += eqns[p+nc*j];
-            } while (--np);
-            break;
+        i = k - n;
+        if (eqns[i+nc*i] === 0) {
+            // the pivot is null, swap lines
+            for (j = i + 1; j < k; j++) {
+                if (eqns[i+nc*j] !== 0) {
+                    np = kp;
+                    do { // do line( i ) = line( i ) + line( k )
+                        p = kp - np;
+                        eqns[p+nc*i] += eqns[p+nc*j];
+                    } while (--np);
+                    break;
+                }
+            }
         }
+        if (eqns[i+nc*i] !== 0) {
+            for (j = i + 1; j < k; j++) {
+                var multiplier = eqns[i+nc*j] / eqns[i+nc*i];
+                np = kp;
+                do { // do line( k ) = line( k ) - multiplier * line( i )
+                    p = kp - np;
+                    eqns[p+nc*j] = p <= i ? 0 : eqns[p+nc*j] - eqns[p+nc*i] * multiplier ;
+                } while (--np);
+            }
         }
-    }
-    if (eqns[i+nc*i] !== 0) {
-        for (j = i + 1; j < k; j++) {
-        var multiplier = eqns[i+nc*j] / eqns[i+nc*i];
-        np = kp;
-        do { // do line( k ) = line( k ) - multiplier * line( i )
-            p = kp - np;
-            eqns[p+nc*j] = p <= i ? 0 : eqns[p+nc*j] - eqns[p+nc*i] * multiplier ;
-        } while (--np);
-        }
-    }
     } while (--n);
-  
-  // eliminate the upper left triangle of the matrix
-  i = 2
+
+    // eliminate the upper left triangle of the matrix
+    i = 2;
     do {
-    j = i-1;
-    do {
-        var multiplier = eqns[i+nc*j] / eqns[i+nc*i];
-        np = nc;
-        do { 
-        p = nc - np;
-        eqns[p+nc*j] =  eqns[p+nc*j] - eqns[p+nc*i] * multiplier ;
-        } while (--np);
-    } while (j--);
+        j = i-1;
+        do {
+            var multiplier = eqns[i+nc*j] / eqns[i+nc*i];
+            np = nc;
+            do {
+                p = nc - np;
+                eqns[p+nc*j] =  eqns[p+nc*j] - eqns[p+nc*i] * multiplier ;
+            } while (--np);
+        } while (j--);
     } while (--i);
-  
-  // operations on the diagonal
+
+    // operations on the diagonal
     i = 2;
     do {
-    var multiplier = 1 / eqns[i+nc*i];
-    np = nc;
-    do { 
-        p = nc - np;
-        eqns[p+nc*i] = eqns[p+nc*i] * multiplier ;
-    } while (--np);
+        var multiplier = 1 / eqns[i+nc*i];
+        np = nc;
+        do {
+            p = nc - np;
+            eqns[p+nc*i] = eqns[p+nc*i] * multiplier ;
+        } while (--np);
     } while (i--);
-  
-  
+
     i = 2;
     do {
-    j = 2;
-    do {
-        p = eqns[nr+j+nc*i];
-        if( isNaN( p ) || p ===Infinity )
-        throw "Could not reverse! A=["+this.toString()+"]";
-        target.e( i , j , p );
-    } while (j--);
+        j = 2;
+        do {
+            p = eqns[nr+j+nc*i];
+            if( isNaN( p ) || p ===Infinity ){
+                throw "Could not reverse! A=["+this.toString()+"]";
+            }
+            target.e( i , j , p );
+        } while (j--);
     } while (i--);
-    
+
     return target;
-};/*global CANNON:true */
+};
 
 /**
  * @class CANNON.Vec3
@@ -1527,8 +1265,11 @@ CANNON.Vec3 = function(x,y,z){
     */
     this.z = z||0.0;
 
+    /*
     numVecs++;
-    //console.log(numVecs+" created");
+    if(numVecs > 180)
+        console.log(numVecs+" created");
+     */
 };
 
 /**
@@ -1543,16 +1284,10 @@ CANNON.Vec3.prototype.cross = function(v,target){
     var vx=v.x, vy=v.y, vz=v.z, x=this.x, y=this.y, z=this.z;
     target = target || new CANNON.Vec3();
 
-    var A = [this.x, this.y, this.z];
-    var B = [v.x, v.y, v.z];
-    
-    /*target.x = (A[1] * B[2]) - (A[2] * B[1]);
-    target.y = (A[2] * B[0]) - (A[0] * B[2]);
-    target.z = (A[0] * B[1]) - (A[1] * B[0]);*/
     target.x = (y * vz) - (z * vy);
     target.y = (z * vx) - (x * vz);
     target.z = (x * vy) - (y * vx);
-    
+
     return target;
 };
 
@@ -1571,7 +1306,7 @@ CANNON.Vec3.prototype.set = function(x,y,z){
     this.z = z;
     return this;
 };
-    
+
 /**
  * @method vadd
  * @memberof CANNON.Vec3
@@ -1589,9 +1324,9 @@ CANNON.Vec3.prototype.vadd = function(v,target){
         return new CANNON.Vec3(this.x + v.x,
                                this.y + v.y,
                                this.z + v.z);
-    }  
+    }
 };
-    
+
 /**
  * @method vsub
  * @memberof CANNON.Vec3
@@ -1710,8 +1445,7 @@ CANNON.Vec3.prototype.distanceTo = function(p){
  * @return CANNON.Vec3
  */
 CANNON.Vec3.prototype.mult = function(scalar,target){
-    if(!target)
-        target = new CANNON.Vec3();
+    target = target || new CANNON.Vec3();
     target.x = scalar*this.x;
     target.y = scalar*this.y;
     target.z = scalar*this.z;
@@ -1736,7 +1470,7 @@ CANNON.Vec3.prototype.dot = function(v){
  */
 CANNON.Vec3.prototype.isZero = function(){
     return this.x===0 && this.y===0 && this.z===0;
-}
+};
 
 /**
  * @method negate
@@ -1766,10 +1500,10 @@ CANNON.Vec3.prototype.tangents = function(t1,t2){
     var norm = this.norm();
     if(norm>0.0){
         var n = Vec3_tangents_n;
-	var inorm = 1/norm;
+        var inorm = 1/norm;
         n.set(this.x*inorm,this.y*inorm,this.z*inorm);
         var randVec = Vec3_tangents_randVec;
-	if(Math.abs(n.x) < 0.9){
+        if(Math.abs(n.x) < 0.9){
             randVec.set(1,0,0);
             n.cross(randVec,t1);
         } else {
@@ -1834,14 +1568,16 @@ CANNON.Vec3.prototype.lerp = function(v,t,target){
  * @return bool
  */
 CANNON.Vec3.prototype.almostEquals = function(v,precision){
-    if(precision===undefined)
+    if(precision===undefined){
         precision = 1e-6;
+    }
     if( Math.abs(this.x-v.x)>precision ||
         Math.abs(this.y-v.y)>precision ||
-        Math.abs(this.z-v.z)>precision)
+        Math.abs(this.z-v.z)>precision){
         return false;
+    }
     return true;
-}
+};
 
 /**
  * @method almostZero
@@ -1850,15 +1586,17 @@ CANNON.Vec3.prototype.almostEquals = function(v,precision){
  * @memberof CANNON.Vec3
  */
 CANNON.Vec3.prototype.almostZero = function(precision){
-    if(precision===undefined)
+    if(precision===undefined){
         precision = 1e-6;
+    }
     if( Math.abs(this.x)>precision ||
         Math.abs(this.y)>precision ||
-        Math.abs(this.z)>precision)
+        Math.abs(this.z)>precision){
         return false;
+    }
     return true;
-}
-/*global CANNON:true */
+};
+
 
 /**
  * @class CANNON.Quaternion
@@ -1875,23 +1613,23 @@ CANNON.Quaternion = function(x,y,z,w){
     * @property float x
     * @memberof CANNON.Quaternion
     */
-    this.x = x!=undefined ? x : 0;
+    this.x = x!==undefined ? x : 0;
     /**
     * @property float y
     * @memberof CANNON.Quaternion
     */
-    this.y = y!=undefined ? y : 0;
+    this.y = y!==undefined ? y : 0;
     /**
     * @property float z
     * @memberof CANNON.Quaternion
     */
-    this.z = z!=undefined ? z : 0;
+    this.z = z!==undefined ? z : 0;
     /**
     * @property float w
     * @memberof CANNON.Quaternion
     * @brief The multiplier of the real quaternion basis vector.
     */
-    this.w = w!=undefined ? w : 1;
+    this.w = w!==undefined ? w : 1;
 };
 
 /**
@@ -1977,22 +1715,26 @@ CANNON.Quaternion.prototype.setFromVectors = function(u,v){
  * @param CANNON.Quaternion q
  * @param CANNON.Quaternion target Optional.
  * @return CANNON.Quaternion
- */ 
-var va = new CANNON.Vec3();
-var vb = new CANNON.Vec3();
-var vaxvb = new CANNON.Vec3();
+ */
+var Quaternion_mult_va = new CANNON.Vec3();
+var Quaternion_mult_vb = new CANNON.Vec3();
+var Quaternion_mult_vaxvb = new CANNON.Vec3();
 CANNON.Quaternion.prototype.mult = function(q,target){
-    var w = this.w;
-    if(target==undefined)
-        target = new CANNON.Quaternion();
-    
+    target = target || new CANNON.Quaternion();
+    var w = this.w,
+        va = Quaternion_mult_va,
+        vb = Quaternion_mult_vb,
+        vaxvb = Quaternion_mult_vaxvb;
+
     va.set(this.x,this.y,this.z);
     vb.set(q.x,q.y,q.z);
     target.w = w*q.w - va.dot(vb);
     va.cross(vb,vaxvb);
+
     target.x = w * vb.x + q.w*va.x + vaxvb.x;
     target.y = w * vb.y + q.w*va.y + vaxvb.y;
     target.z = w * vb.z + q.w*va.z + vaxvb.z;
+
     return target;
 };
 
@@ -2005,16 +1747,15 @@ CANNON.Quaternion.prototype.mult = function(q,target){
  */
 CANNON.Quaternion.prototype.inverse = function(target){
     var x = this.x, y = this.y, z = this.z, w = this.w;
-    if(target==undefined)
-        target = new CANNON.Quaternion();
-    
+    target = target || new CANNON.Quaternion();
+
     this.conjugate(target);
     var inorm2 = 1/(x*x + y*y + z*z + w*w);
     target.x *= inorm2;
     target.y *= inorm2;
     target.z *= inorm2;
     target.w *= inorm2;
-    
+
     return target;
 };
 
@@ -2026,8 +1767,7 @@ CANNON.Quaternion.prototype.inverse = function(target){
  * @return CANNON.Quaternion
  */
 CANNON.Quaternion.prototype.conjugate = function(target){
-    if(target==undefined)
-        target = new CANNON.Quaternion();
+    target = target || new CANNON.Quaternion();
 
     target.x = -this.x;
     target.y = -this.y;
@@ -2078,7 +1818,7 @@ CANNON.Quaternion.prototype.normalizeFast = function () {
         this.z *= f;
         this.w *= f;
     }
-}
+};
 
 /**
  * @method vmult
@@ -2090,20 +1830,20 @@ CANNON.Quaternion.prototype.normalizeFast = function () {
  */
 CANNON.Quaternion.prototype.vmult = function(v,target){
     target = target || new CANNON.Vec3();
-    if(this.w==0.0){
+    if(this.w===0.0){
         target.x = v.x;
         target.y = v.y;
         target.z = v.z;
     } else {
 
         var x = v.x,
-        y = v.y,
-        z = v.z;
+            y = v.y,
+            z = v.z;
 
         var qx = this.x,
-        qy = this.y,
-        qz = this.z,
-        qw = this.w;
+            qy = this.y,
+            qz = this.z,
+            qw = this.w;
 
         // q*v
         var ix =  qw * x + qy * z - qz * y,
@@ -2168,13 +1908,80 @@ CANNON.Quaternion.prototype.toEuler = function(target,order){
         break;
     default:
         throw new Error("Euler order "+order+" not supported yet.");
-        break;
     }
 
     target.y = heading;
     target.z = attitude;
     target.x = bank;
-};/*global CANNON:true */
+};
+
+/**
+ * @class CANNON.EventTarget
+ * @see https://github.com/mrdoob/eventtarget.js/
+ */
+CANNON.EventTarget = function () {
+    var listeners = {};
+    this.addEventListener = function ( type, listener ) {
+        if ( listeners[ type ] === undefined ) {
+            listeners[ type ] = [];
+        }
+        if ( listeners[ type ].indexOf( listener ) === - 1 ) {
+            listeners[ type ].push( listener );
+        }
+    };
+    this.dispatchEvent = function ( event ) {
+        for ( var listener in listeners[ event.type ] ) {
+            listeners[ event.type ][ listener ]( event );
+        }
+    };
+    this.removeEventListener = function ( type, listener ) {
+        var index = listeners[ type ].indexOf( listener );
+        if ( index !== - 1 ) {
+            listeners[ type ].splice( index, 1 );
+        }
+    };
+};
+
+/**
+ * @class CANNON.ObjectPool
+ * @brief For pooling objects that can be reused.
+ */
+CANNON.ObjectPool = function(){
+    this.objects = [];
+    this.type = Object;
+};
+
+CANNON.ObjectPool.prototype.release = function(){
+    var Nargs = arguments.length;
+    for(var i=0; i!==Nargs; i++){
+        this.objects.push(arguments[i]);
+    }
+};
+
+CANNON.ObjectPool.prototype.get = function(){
+    if(this.objects.length===0){
+        return this.constructObject();
+    } else {
+        return this.objects.pop();
+    }
+};
+
+CANNON.ObjectPool.prototype.constructObject = function(){
+    throw new Error("constructObject() not implemented in this ObjectPool subclass yet!");
+};
+
+/**
+ * @class CANNON.Vec3Pool
+ */
+CANNON.Vec3Pool = function(){
+    CANNON.ObjectPool.call(this);
+    this.type = CANNON.Vec3;
+};
+CANNON.Vec3Pool.prototype = new CANNON.ObjectPool();
+
+CANNON.Vec3Pool.prototype.constructObject = function(){
+    return new CANNON.Vec3();
+};
 
 /**
  * @class CANNON.Shape
@@ -2207,7 +2014,20 @@ CANNON.Shape.prototype.constructor = CANNON.Shape;
  * @return float
  */
 CANNON.Shape.prototype.computeBoundingSphereRadius = function(){
-  throw "computeBoundingSphereRadius() not implemented for shape type "+this.type;
+    throw "computeBoundingSphereRadius() not implemented for shape type "+this.type;
+};
+
+/**
+ * @method getBoundingSphereRadius
+ * @memberof CANNON.Shape
+ * @brief Returns the bounding sphere radius. The result is stored in the property .boundingSphereRadius
+ * @return float
+ */
+CANNON.Shape.prototype.getBoundingSphereRadius = function(){
+	if (this.boundingSphereRadiusNeedsUpdate) {
+		this.computeBoundingSphereRadius();
+	}
+	return this.boundingSphereRadius;
 };
 
 /**
@@ -2228,7 +2048,7 @@ CANNON.Shape.prototype.volume = function(){
  * @see http://en.wikipedia.org/wiki/List_of_moments_of_inertia
  */
 CANNON.Shape.prototype.calculateLocalInertia = function(mass,target){
-  throw "calculateLocalInertia() not implemented for shape type "+this.type;
+    throw "calculateLocalInertia() not implemented for shape type "+this.type;
 };
 
 /**
@@ -2237,22 +2057,23 @@ CANNON.Shape.prototype.calculateLocalInertia = function(mass,target){
  * @brief Calculates inertia in a specified frame for this shape.
  * @return CANNON.Vec3
  */
+var Shape_calculateTransformedInertia_localInertia = new CANNON.Vec3();
+var Shape_calculateTransformedInertia_worldInertia = new CANNON.Vec3();
 CANNON.Shape.prototype.calculateTransformedInertia = function(mass,quat,target){
-  if(target==undefined)
-    target = new CANNON.Vec3();
+    target = target || new CANNON.Vec3();
 
-  // Compute inertia in the world frame
-  quat.normalize();
-  var localInertia = new CANNON.Vec3();
-  this.calculateLocalInertia(mass,localInertia);
+    // Compute inertia in the world frame
+    //quat.normalize();
+    var localInertia = Shape_calculateTransformedInertia_localInertia;
+    var worldInertia = Shape_calculateTransformedInertia_worldInertia;
+    this.calculateLocalInertia(mass,localInertia);
 
-  // @todo Is this rotation OK? Check!
-  var worldInertia = quat.vmult(localInertia);
-  target.x = Math.abs(worldInertia.x);
-  target.y = Math.abs(worldInertia.y);
-  target.z = Math.abs(worldInertia.z);
-  return target;
-  //throw "calculateInertia() not implemented for shape type "+this.type;
+    // @todo Is this rotation OK? Check!
+    quat.vmult(localInertia,worldInertia);
+    target.x = Math.abs(worldInertia.x);
+    target.y = Math.abs(worldInertia.y);
+    target.z = Math.abs(worldInertia.z);
+    return target;
 };
 
 // Calculates the local aabb and sets the result to .aabbmax and .aabbmin
@@ -2266,14 +2087,14 @@ CANNON.Shape.calculateLocalAABB = function(){
  * @brief The available shape types.
  */
 CANNON.Shape.types = {
-  SPHERE:1,
-  PLANE:2,
-  BOX:4,
-  COMPOUND:8,
-  CONVEXPOLYHEDRON:16
+    SPHERE:1,
+    PLANE:2,
+    BOX:4,
+    COMPOUND:8,
+    CONVEXPOLYHEDRON:16
 };
 
-/*global CANNON:true */
+
 
 /**
  * @class CANNON.Body
@@ -2287,8 +2108,6 @@ CANNON.Body = function(type){
     CANNON.EventTarget.apply(this);
 
     this.type = type;
-
-    var that = this;
 
     /**
     * @property CANNON.World world
@@ -2314,6 +2133,9 @@ CANNON.Body = function(type){
     this.postStep = null;
 
     this.vlambda = new CANNON.Vec3();
+
+    this.collisionFilterGroup = 1;
+    this.collisionFilterMask = 1;
 };
 
 /*
@@ -2329,7 +2151,7 @@ CANNON.Body.STATIC = 2;
 /*
  * A kinematic body moves under simulation according to its velocity. They do not respond to forces. They can be moved manually, but normally a kinematic body is moved by setting its velocity. A kinematic body behaves as if it has infinite mass. Kinematic bodies do not collide with other static or kinematic bodies.
  */
-CANNON.Body.KINEMATIC = 4;/*global CANNON:true */
+CANNON.Body.KINEMATIC = 4;
 
 /**
  * @class CANNON.Particle
@@ -2340,14 +2162,14 @@ CANNON.Body.KINEMATIC = 4;/*global CANNON:true */
 CANNON.Particle = function(mass,material){
 
     // Check input
-    if(typeof(mass)!="number")
+    if(typeof(mass)!=="number"){
         throw new Error("Argument 1 (mass) must be a number.");
-    if(typeof(material)!="undefined" && !(material instanceof(CANNON.Material)))
+    }
+    if(typeof(material)!=="undefined" && !(material instanceof(CANNON.Material))){
         throw new Error("Argument 3 (material) must be an instance of CANNON.Material.");
+    }
 
     CANNON.Body.call(this,"particle");
-
-    var that = this;
 
     /**
     * @property CANNON.Vec3 position
@@ -2423,27 +2245,6 @@ CANNON.Particle = function(mass,material){
     this.sleepState = 0;
 
     /**
-    * @method isAwake
-    * @memberof CANNON.Particle
-    * @return bool
-    */
-    this.isAwake = function(){ return that.sleepState == 0; }
-
-    /**
-    * @method isSleepy
-    * @memberof CANNON.Particle
-    * @return bool
-    */
-    this.isSleepy = function(){ return that.sleepState == 1; }
-
-    /**
-    * @method isSleeping
-    * @memberof CANNON.Particle
-    * @return bool
-    */
-    this.isSleeping = function(){ return that.sleepState == 2; }
-
-    /**
     * @property float sleepSpeedLimit
     * @memberof CANNON.Particle
     * @brief If the speed (the norm of the velocity) is smaller than this value, the body is considered sleepy.
@@ -2459,50 +2260,84 @@ CANNON.Particle = function(mass,material){
 
     this.timeLastSleepy = 0;
 
-    /**
-    * @method wakeUp
-    * @memberof CANNON.Particle
-    * @brief Wake the body up.
-    */
-    this.wakeUp = function(){
-        that.sleepState = 0;
-        that.dispatchEvent({type:"wakeup"});
-    };
-
-    /**
-    * @method sleep
-    * @memberof CANNON.Particle
-    * @brief Force body sleep
-    */
-    this.sleep = function(){
-        that.sleepState = 2;
-    };
-
-    /**
-    * @method sleepTick
-    * @memberof CANNON.Particle
-    * @param float time The world time in seconds
-    * @brief Called every timestep to update internal sleep timer and change sleep state if needed.
-    */
-    this.sleepTick = function(time){
-        if(that.allowSleep){
-            var sleepState = that.sleepState;
-            var speedSquared = that.velocity.norm2();
-            var speedLimitSquared = Math.pow(that.sleepSpeedLimit,2);
-            if(sleepState==0 && speedSquared < speedLimitSquared){
-                that.sleepState = 1; // Sleepy
-                that.timeLastSleepy = time;
-                that.dispatchEvent({type:"sleepy"});
-            } else if(sleepState==1 && speedSquared > speedLimitSquared){
-                that.wakeUp(); // Wake up
-            } else if(sleepState==1 && (time - that.timeLastSleepy ) > that.sleepTimeLimit){
-                that.sleepState = 2; // Sleeping
-                that.dispatchEvent({type:"sleep"});
-            }
-        }
-    };
 };
-/*global CANNON:true */
+
+CANNON.Particle.prototype = new CANNON.Body();
+CANNON.Particle.prototype.constructor = CANNON.Particle;
+
+/**
+* @method isAwake
+* @memberof CANNON.Particle
+* @return bool
+*/
+CANNON.Particle.prototype.isAwake = function(){
+    return this.sleepState === 0;
+};
+
+/**
+* @method isSleepy
+* @memberof CANNON.Particle
+* @return bool
+*/
+CANNON.Particle.prototype.isSleepy = function(){
+    return this.sleepState === 1;
+};
+
+/**
+* @method isSleeping
+* @memberof CANNON.Particle
+* @return bool
+*/
+CANNON.Particle.prototype.isSleeping = function(){
+    return this.sleepState === 2;
+};
+
+/**
+* @method wakeUp
+* @memberof CANNON.Particle
+* @brief Wake the body up.
+*/
+CANNON.Particle.prototype.wakeUp = function(){
+    var s = this.sleepState;
+    this.sleepState = 0;
+    if(s === 2){
+        this.dispatchEvent({type:"wakeup"});
+    }
+};
+
+/**
+* @method sleep
+* @memberof CANNON.Particle
+* @brief Force body sleep
+*/
+CANNON.Particle.prototype.sleep = function(){
+    this.sleepState = 2;
+};
+
+/**
+* @method sleepTick
+* @memberof CANNON.Particle
+* @param float time The world time in seconds
+* @brief Called every timestep to update internal sleep timer and change sleep state if needed.
+*/
+CANNON.Particle.prototype.sleepTick = function(time){
+    if(this.allowSleep){
+        var sleepState = this.sleepState;
+        var speedSquared = this.velocity.norm2();
+        var speedLimitSquared = Math.pow(this.sleepSpeedLimit,2);
+        if(sleepState===0 && speedSquared < speedLimitSquared){
+            this.sleepState = 1; // Sleepy
+            this.timeLastSleepy = time;
+            this.dispatchEvent({type:"sleepy"});
+        } else if(sleepState===1 && speedSquared > speedLimitSquared){
+            this.wakeUp(); // Wake up
+        } else if(sleepState===1 && (time - this.timeLastSleepy ) > this.sleepTimeLimit){
+            this.sleepState = 2; // Sleeping
+            this.dispatchEvent({type:"sleep"});
+        }
+    }
+};
+
 
 /**
  * @class CANNON.RigidBody
@@ -2514,10 +2349,12 @@ CANNON.Particle = function(mass,material){
 CANNON.RigidBody = function(mass,shape,material){
 
     // Check input
-    if(typeof(mass)!="number")
-    throw new Error("Argument 1 (mass) must be a number.");
-    if(typeof(material)!="undefined" && !(material instanceof(CANNON.Material)))
-    throw new Error("Argument 3 (material) must be an instance of CANNON.Material.");
+    if(typeof(mass)!=="number"){
+        throw new Error("Argument 1 (mass) must be a number.");
+    }
+    if(typeof(material)!=="undefined" && !(material instanceof(CANNON.Material))){
+        throw new Error("Argument 3 (material) must be an instance of CANNON.Material.");
+    }
 
     CANNON.Particle.call(this,mass,material);
 
@@ -2606,7 +2443,8 @@ CANNON.RigidBody = function(mass,shape,material){
     this.wlambda = new CANNON.Vec3();
 };
 
-CANNON.RigidBody.constructor = CANNON.RigidBody;
+CANNON.RigidBody.prototype = new CANNON.Particle(0);
+CANNON.RigidBody.prototype.constructor = CANNON.RigidBody;
 
 CANNON.RigidBody.prototype.calculateAABB = function(){
     this.shape.calculateWorldAABB(this.position,
@@ -2622,7 +2460,7 @@ CANNON.RigidBody.prototype.applyImpulse = function(worldPoint,force,dt){
     r.cross(force,rotForce);
     this.velocity.vadd(force.mult(dt),this.velocity);
     this.angularVelocity.vadd(rotForce.mult(dt),this.angularVelocity);
-};/*global CANNON:true */
+};
 
 /**
  * @brief Spherical rigid body
@@ -2638,7 +2476,7 @@ CANNON.Sphere = function(radius){
      * @property float radius
      * @memberof CANNON.Sphere
      */
-    this.radius = radius!=undefined ? Number(radius) : 1.0;
+    this.radius = radius!==undefined ? Number(radius) : 1.0;
     this.type = CANNON.Shape.types.SPHERE;
 };
 CANNON.Sphere.prototype = new CANNON.Shape();
@@ -2670,7 +2508,7 @@ CANNON.Sphere.prototype.calculateWorldAABB = function(pos,quat,min,max){
         min[ax] = pos[ax] - r;
         max[ax] = pos[ax] + r;
     }
-};/*global CANNON:true */
+};
 
 /**
  * @class CANNON.Box
@@ -2710,40 +2548,76 @@ CANNON.Box.prototype.updateConvexPolyhedronRepresentation = function(){
     var sx = this.halfExtents.x;
     var sy = this.halfExtents.y;
     var sz = this.halfExtents.z;
-    var v = CANNON.Vec3;
-    var h = new CANNON.ConvexPolyhedron([new v(-sx,-sy,-sz),
-                                         new v( sx,-sy,-sz),
-                                         new v( sx, sy,-sz),
-                                         new v(-sx, sy,-sz),
-                                         new v(-sx,-sy, sz),
-                                         new v( sx,-sy, sz),
-                                         new v( sx, sy, sz),
-                                         new v(-sx, sy, sz)],
-                                        
-                                         [[0,1,2,3], // -z
+    var V = CANNON.Vec3;
+
+
+      function createBoxPolyhedron(size){
+          size = size || 1;
+          var vertices = [new CANNON.Vec3(-size,-size,-size),
+                          new CANNON.Vec3( size,-size,-size),
+                          new CANNON.Vec3( size, size,-size),
+                          new CANNON.Vec3(-size, size,-size),
+                          new CANNON.Vec3(-size,-size, size),
+                          new CANNON.Vec3( size,-size, size),
+                          new CANNON.Vec3( size, size, size),
+                          new CANNON.Vec3(-size, size, size)];
+          var faces =[[3,2,1,0], // -z
+                      [4,5,6,7], // +z
+                      [5,4,1,0], // -y
+                      [2,3,6,7], // +y
+                      [0,4,7,3 /*0,3,4,7*/ ], // -x
+                      [1,2,5,6], // +x
+                      ];
+          var faceNormals =   [new CANNON.Vec3( 0, 0,-1),
+                               new CANNON.Vec3( 0, 0, 1),
+                               new CANNON.Vec3( 0,-1, 0),
+                               new CANNON.Vec3( 0, 1, 0),
+                               new CANNON.Vec3(-1, 0, 0),
+                               new CANNON.Vec3( 1, 0, 0)];
+          var boxShape = new CANNON.ConvexPolyhedron(vertices,
+                                                     faces,
+                                                     faceNormals);
+          return boxShape;
+      }
+
+
+    var h = new CANNON.ConvexPolyhedron([new V(-sx,-sy,-sz),
+                                         new V( sx,-sy,-sz),
+                                         new V( sx, sy,-sz),
+                                         new V(-sx, sy,-sz),
+                                         new V(-sx,-sy, sz),
+                                         new V( sx,-sy, sz),
+                                         new V( sx, sy, sz),
+                                         new V(-sx, sy, sz)],
+                                         [[3,2,1,0], // -z
+                      [4,5,6,7], // +z
+                      [5,4,1,0], // -y
+                      [2,3,6,7], // +y
+                      [0,4,7,3 /*0,3,4,7*/ ], // -x
+                      [1,2,5,6], // +x
+                      ]/*[[0,1,2,3], // -z
                                           [4,5,6,7], // +z
                                           [0,1,5,4], // -y
                                           [2,3,7,6], // +y
                                           [0,3,7,4], // -x
                                           [1,2,6,5], // +x
-                                          ],
-                                        
-                                        [new v( 0, 0,-1),
-                                         new v( 0, 0, 1),
-                                         new v( 0,-1, 0),
-                                         new v( 0, 1, 0),
-                                         new v(-1, 0, 0),
-                                         new v( 1, 0, 0)]);
+                                          ]*/,
+                                        [new V( 0, 0,-1),
+                                         new V( 0, 0, 1),
+                                         new V( 0,-1, 0),
+                                         new V( 0, 1, 0),
+                                         new V(-1, 0, 0),
+                                         new V( 1, 0, 0)]);
     this.convexPolyhedronRepresentation = h;
 };
 
 CANNON.Box.prototype.calculateLocalInertia = function(mass,target){
-  target = target || new CANNON.Vec3();
-  var e = this.halfExtents;
-  target.x = 1.0 / 12.0 * mass * (   2*e.y*2*e.y + 2*e.z*2*e.z );
-  target.y = 1.0 / 12.0 * mass * (   2*e.x*2*e.x + 2*e.z*2*e.z );
-  target.z = 1.0 / 12.0 * mass * (   2*e.y*2*e.y + 2*e.x*2*e.x );
-  return target;
+    target = target || new CANNON.Vec3();
+    var e = this.halfExtents;
+    target.x = 1.0 / 12.0 * mass * (   2*e.y*2*e.y + 2*e.z*2*e.z );
+    target.y = 1.0 / 12.0 * mass * (   2*e.x*2*e.x + 2*e.z*2*e.z );
+    target.z = 1.0 / 12.0 * mass * (   2*e.y*2*e.y + 2*e.x*2*e.x );
+    return target;
 };
 
 /**
@@ -2764,9 +2638,10 @@ CANNON.Box.prototype.getSideNormals = function(sixTargetVectors,quat){
     sides[4].set(     0, -ex.y,     0);
     sides[5].set(     0,     0, -ex.z);
 
-    if(quat!=undefined){
-        for(var i=0; i<sides.length; i++)
+    if(quat!==undefined){
+        for(var i=0; i!==sides.length; i++){
             quat.vmult(sides[i],sides[i]);
+        }
     }
 
     return sides;
@@ -2794,7 +2669,6 @@ CANNON.Box.prototype.forEachWorldCorner = function(pos,quat,callback){
                    [  e.x,  e.y, -e.z],
                    [ -e.x,  e.y, -e.z],
                    [  e.x, -e.y,  e.z]];
-           
     for(var i=0; i<corners.length; i++){
         worldCornerTempPos.set(corners[i][0],corners[i][1],corners[i][2]);
         quat.vmult(worldCornerTempPos,worldCornerTempPos);
@@ -2810,17 +2684,27 @@ CANNON.Box.prototype.calculateWorldAABB = function(pos,quat,min,max){
     min.set(Infinity,Infinity,Infinity);
     max.set(-Infinity,-Infinity,-Infinity);
     this.forEachWorldCorner(pos,quat,function(x,y,z){
+        if(x > max.x){
+            max.x = x;
+        }
+        if(y > max.y){
+            max.y = y;
+        }
+        if(z > max.z){
+            max.z = z;
+        }
 
-        if(x > max.x) max.x = x;
-        if(y > max.y) max.y = y;
-        if(z > max.z) max.z = z;
-
-        if(x < min.x) min.x = x;
-        if(y < min.y) min.y = y;
-        if(z < min.z) min.z = z;
-
-    });    
-};/*global CANNON:true */
+        if(x < min.x){
+            min.x = x;
+        }
+        if(y < min.y){
+            min.y = y;
+        }
+        if(z < min.z){
+            min.z = z;
+        }
+    });
+};
 
 /**
  * @class CANNON.Plane
@@ -2833,9 +2717,20 @@ CANNON.Box.prototype.calculateWorldAABB = function(pos,quat,min,max){
 CANNON.Plane = function(){
     CANNON.Shape.call(this);
     this.type = CANNON.Shape.types.PLANE;
+
+    // World oriented normal
+    this.worldNormal = new CANNON.Vec3();
+    this.worldNormalNeedsUpdate = true;
 };
 CANNON.Plane.prototype = new CANNON.Shape();
 CANNON.Plane.prototype.constructor = CANNON.Plane;
+
+CANNON.Plane.prototype.computeWorldNormal = function(quat){
+    var n = this.worldNormal;
+    n.set(0,0,1);
+    quat.vmult(n,n);
+    this.worldNormalNeedsUpdate = false;
+};
 
 CANNON.Plane.prototype.calculateLocalInertia = function(mass,target){
     target = target || new CANNON.Vec3();
@@ -2854,12 +2749,14 @@ CANNON.Plane.prototype.calculateWorldAABB = function(pos,quat,min,max){
     var axes = ['x','y','z'];
     for(var i=0; i<axes.length; i++){
         var ax = axes[i];
-        if(tempNormal[ax]==1)
+        if(tempNormal[ax] === 1){
             max[ax] = pos[ax];
-        if(tempNormal[ax]==-1)
+        }
+        if(tempNormal[ax] === -1){
             min[ax] = pos[ax];
+        }
     }
-};/*global CANNON:true */
+};
 
 /**
  * @class CANNON.Compound
@@ -2895,8 +2792,10 @@ CANNON.Compound.prototype.addChild = function(shape,offset,orientation){
 
 CANNON.Compound.prototype.volume = function(){
     var r = 0.0;
-    for(var i = 0; i<this.childShapes.length; i++)
+    var Nchildren = this.childShapes.length;
+    for(var i=0; i!==Nchildren; i++){
         r += this.childShapes[i].volume();
+    }
     return r;
 };
 
@@ -2939,10 +2838,13 @@ CANNON.Compound.prototype.computeBoundingSphereRadius = function(){
     var r = 0.0;
     for(var i = 0; i<this.childShapes.length; i++){
         var si = this.childShapes[i];
-        if(si.boundingSphereRadiusNeedsUpdate) si.computeBoundingSphereRadius();
+        if(si.boundingSphereRadiusNeedsUpdate){
+            si.computeBoundingSphereRadius();
+        }
         var candidate = this.childOffsets[i].norm() + si.boundingSphereRadius;
-        if(r < candidate)
+        if(r < candidate){
             r = candidate;
+        }
     }
     this.boundingSphereRadius = r;
     this.boundingSphereRadiusNeedsUpdate = false;
@@ -2957,7 +2859,7 @@ CANNON.Compound.prototype.calculateWorldAABB = function(pos,quat,min,max){
     min.set(Infinity,Infinity,Infinity);
     max.set(-Infinity,-Infinity,-Infinity);
     // Get each axis max
-    for(var i=0; i<N; i++){
+    for(var i=0; i!==N; i++){
 
         // Accumulate transformation to child
         this.childOffsets[i].copy(childPosTemp);
@@ -2972,15 +2874,29 @@ CANNON.Compound.prototype.calculateWorldAABB = function(pos,quat,min,max){
                                                aabbminTemp,
                                                aabbmaxTemp);
 
-        if(aabbminTemp.x < min.x) min.x = aabbminTemp.x;
-        if(aabbminTemp.y < min.y) min.y = aabbminTemp.y;
-        if(aabbminTemp.z < min.z) min.z = aabbminTemp.z;
-        
-        if(aabbmaxTemp.x > max.x) max.x = aabbmaxTemp.x;
-        if(aabbmaxTemp.y > max.y) max.y = aabbmaxTemp.y;
-        if(aabbmaxTemp.z > max.z) max.z = aabbmaxTemp.z;
+        if(aabbminTemp.x < min.x){
+            min.x = aabbminTemp.x;
+        }
+        if(aabbminTemp.y < min.y){
+            min.y = aabbminTemp.y;
+        }
+        if(aabbminTemp.z < min.z){
+            min.z = aabbminTemp.z;
+        }
+
+        if(aabbmaxTemp.x > max.x){
+            max.x = aabbmaxTemp.x;
+        }
+        if(aabbmaxTemp.y > max.y){
+            max.y = aabbmaxTemp.y;
+        }
+        if(aabbmaxTemp.z > max.z){
+            max.z = aabbmaxTemp.z;
+        }
     }
-};/**
+};
+
+/**
  * @class CANNON.ConvexPolyhedron
  * @extends CANNON.Shape
  * @brief A set of points in space describing a convex shape.
@@ -2990,11 +2906,32 @@ CANNON.Compound.prototype.calculateWorldAABB = function(pos,quat,min,max){
  * @see http://bullet.googlecode.com/svn/trunk/src/BulletCollision/NarrowPhaseCollision/btPolyhedralContactClipping.cpp
  * @todo move the clipping functions to ContactGenerator?
  * @param array points An array of CANNON.Vec3's
+ * @param array faces
+ * @param array normals
  */
 CANNON.ConvexPolyhedron = function( points , faces , normals ) {
     var that = this;
     CANNON.Shape.call( this );
     this.type = CANNON.Shape.types.CONVEXPOLYHEDRON;
+
+    /*
+     * @brief Get face normal given 3 vertices
+     * @param CANNON.Vec3 va
+     * @param CANNON.Vec3 vb
+     * @param CANNON.Vec3 vc
+     * @param CANNON.Vec3 target
+     * @todo unit test?
+     */
+    var cb = new CANNON.Vec3();
+    var ab = new CANNON.Vec3();
+    function normal( va, vb, vc, target ) {
+        vb.vsub(va,ab);
+        vc.vsub(vb,cb);
+        cb.cross(ab,target);
+        if ( !target.isZero() ) {
+            target.normalize();
+        }
+    }
 
     /**
     * @property array vertices
@@ -3002,6 +2939,9 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
     * @brief Array of CANNON.Vec3
     */
     this.vertices = points||[];
+
+    this.worldVertices = []; // World transformed version of .vertices
+    this.worldVerticesNeedsUpdate = true;
 
     /**
     * @property array faces
@@ -3017,9 +2957,38 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
      * @brief Array of CANNON.Vec3
      * @todo Needed?
      */
-    this.faceNormals = normals||[];
-    for(var i=0; i<this.faceNormals.length; i++)
+    this.faceNormals = [];//normals||[];
+    /*
+    for(var i=0; i<this.faceNormals.length; i++){
         this.faceNormals[i].normalize();
+    }
+     */
+    // Generate normals
+    for(var i=0; i<this.faces.length; i++){
+
+        // Check so all vertices exists for this face
+        for(var j=0; j<this.faces[i].length; j++){
+            if(!this.vertices[this.faces[i][j]]){
+                throw new Error("Vertex "+this.faces[i][j]+" not found!");
+            }
+        }
+
+        var n = new CANNON.Vec3();
+        normalOfFace(i,n);
+        n.negate(n);
+        this.faceNormals.push(n);
+        //console.log(n.toString());
+        var vertex = this.vertices[this.faces[i][0]];
+        if(n.dot(vertex)<0){
+            console.warn("Face normal "+i+" ("+n.toString()+") looks like it points into the shape? The vertices follow. Make sure they are ordered CCW around the normal, using the right hand rule.");
+            for(var j=0; j<this.faces[i].length; j++){
+                console.warn("Vertex "+this.faces[i][j]+": ("+this.vertices[faces[i][j]].toString()+")");
+            }
+        }
+    }
+
+    this.worldFaceNormalsNeedsUpdate = true;
+    this.worldFaceNormals = []; // World transformed version of .faceNormals
 
     /**
      * @property array uniqueEdges
@@ -3032,9 +3001,7 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
         var p = this.vertices[pi];
         if(!(p instanceof CANNON.Vec3)){
             throw "Argument 1 must be instance of CANNON.Vec3";
-            return false;
         }
-        //this.vertices.push(p);
         this.uniqueEdges.push(p);
     }
 
@@ -3048,10 +3015,9 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
             edge.normalize();
             var found = false;
             for(var p=0;p<this.uniqueEdges.length;p++){
-                if (this.uniqueEdges[p].almostEquals(edge) || 
-                    this.uniqueEdges[p].almostEquals(edge)){
-                found = true;
-                break;
+                if (this.uniqueEdges[p].almostEquals(edge) || this.uniqueEdges[p].almostEquals(edge)){
+                    found = true;
+                    break;
                 }
             }
 
@@ -3062,9 +3028,11 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
             if (edge) {
                 edge.face1 = i;
             } else {
+                /*
                 var ed;
                 ed.m_face0 = i;
                 edges.insert(vp,ed);
+                 */
             }
         }
     }
@@ -3088,10 +3056,12 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
             quat.vmult(worldVertex,worldVertex);
             worldVertex.vadd(pos,worldVertex);
             var val = worldVertex.dot(axis);
-            if(max===null || val>max)
+            if(max===null || val>max){
                 max = val;
-            if(min===null || val<min)
+            }
+            if(min===null || val<min){
                 min = val;
+            }
         }
 
         if(min>max){
@@ -3100,7 +3070,6 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
             min = max;
             max = temp;
         }
-    
         // Output
         maxmin[0] = max;
         maxmin[1] = min;
@@ -3130,12 +3099,11 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
             //console.log(minA,maxA,minB,maxB);
             return false; // Separated
         }
-        
         var d0 = maxA - minB;
         var d1 = maxB - minA;
-        depth = d0<d1 ? d0:d1;
+        var depth = d0<d1 ? d0:d1;
         return depth;
-    }
+    };
 
     /**
      * @method findSeparatingAxis
@@ -3150,7 +3118,7 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
      * @return bool Returns false if a separation is found, else true
      */
     var faceANormalWS3 = new CANNON.Vec3();
-    var Worldnormal1 = new CANNON.Vec3(); 
+    var Worldnormal1 = new CANNON.Vec3();
     var deltaC = new CANNON.Vec3();
     var worldEdge0 = new CANNON.Vec3();
     var worldEdge1 = new CANNON.Vec3();
@@ -3168,12 +3136,11 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
             quatA.vmult(faceANormalWS3,faceANormalWS3);
             //posA.vadd(faceANormalWS3,faceANormalWS3); // Needed?
             //console.log("face normal:",hullA.faceNormals[i].toString(),"world face normal:",faceANormalWS3);
-            
             var d = hullA.testSepAxis(faceANormalWS3, hullB, posA, quatA, posB, quatB);
             if(d===false){
-            return false;
+                return false;
             }
-            
+
             if(d<dmin){
                 dmin = d;
                 faceANormalWS3.copy(target);
@@ -3192,7 +3159,7 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
             if(d===false){
                 return false;
             }
-            
+
             if(d<dmin){
                 dmin = d;
                 Worldnormal1.copy(target);
@@ -3200,7 +3167,7 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
         }
 
         var edgeAstart,edgeAend,edgeBstart,edgeBend;
-        
+
         var curEdgeEdge = 0;
         // Test edges
         for(var e0=0; e0<hullA.uniqueEdges.length; e0++){
@@ -3216,9 +3183,7 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
                 quatB.vmult(worldEdge1,worldEdge1);
                 //posB.vadd(worldEdge1,worldEdge1); // needed?
                 //console.log("edge1:",worldEdge1.toString());
-                
                 worldEdge0.cross(worldEdge1,Cross);
-        
                 curEdgeEdge++;
                 if(!Cross.almostZero()){
                     Cross.normalize();
@@ -3226,7 +3191,6 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
                     if(dist===false){
                         return false;
                     }
-                    
                     if(dist<dmin){
                         dmin = dist;
                         Cross.copy(target);
@@ -3236,11 +3200,11 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
         }
 
         posB.vsub(posA,deltaC);
-        if((deltaC.dot(target))>0.0)
+        if((deltaC.dot(target))>0.0){
             target.negate(target);
-        
+        }
         return true;
-    }
+    };
 
     /**
      * @method clipAgainstHull
@@ -3259,10 +3223,12 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
      */
     var WorldNormal = new CANNON.Vec3();
     this.clipAgainstHull = function(posA,quatA,hullB,posB,quatB,separatingNormal,minDist,maxDist,result){
-        if(!(posA instanceof CANNON.Vec3))
+        if(!(posA instanceof CANNON.Vec3)){
             throw new Error("posA must be Vec3");
-        if(!(quatA instanceof CANNON.Quaternion))
+        }
+        if(!(quatA instanceof CANNON.Quaternion)){
             throw new Error("quatA must be Quaternion");
+        }
         var hullA = this;
         var curMaxDist = maxDist;
         var closestFaceB = -1;
@@ -3278,7 +3244,7 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
             }
         }
         var worldVertsB1 = [];
-        polyB = hullB.faces[closestFaceB];
+        var polyB = hullB.faces[closestFaceB];
         var numVertices = polyB.length;
         for(var e0=0; e0<numVertices; e0++){
             var b = hullB.vertices[polyB[e0]];
@@ -3289,7 +3255,7 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
             worldVertsB1.push(worldb);
         }
 
-        if (closestFaceB>=0)
+        if (closestFaceB>=0){
             this.clipFaceAgainstHull(separatingNormal,
                                      posA,
                                      quatA,
@@ -3297,6 +3263,7 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
                                      minDist,
                                      maxDist,
                                      result);
+        }
     };
 
     /**
@@ -3320,17 +3287,18 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
     var localPlaneNormal = new CANNON.Vec3();
     var planeNormalWS = new CANNON.Vec3();
     this.clipFaceAgainstHull = function(separatingNormal, posA, quatA, worldVertsB1, minDist, maxDist,result){
-        if(!(separatingNormal instanceof CANNON.Vec3))
+        if(!(separatingNormal instanceof CANNON.Vec3)){
             throw new Error("sep normal must be vector");
-        if(!(worldVertsB1 instanceof Array))
+        }
+        if(!(worldVertsB1 instanceof Array)){
             throw new Error("world verts must be array");
+        }
         minDist = Number(minDist);
         maxDist = Number(maxDist);
         var hullA = this;
         var worldVertsB2 = [];
         var pVtxIn = worldVertsB1;
         var pVtxOut = worldVertsB2;
-    
         // Find the face with normal closest to the separating axis
         var closestFaceA = -1;
         var dmin = Infinity;
@@ -3340,8 +3308,8 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
             //posA.vadd(faceANormalWS,faceANormalWS);
             var d = faceANormalWS.dot(separatingNormal);
             if (d < dmin){
-            dmin = d;
-            closestFaceA = face;
+                dmin = d;
+                closestFaceA = face;
             }
         }
         if (closestFaceA<0){
@@ -3349,18 +3317,16 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
             return;
         }
         //console.log("closest A: ",closestFaceA);
-    
         // Get the face and construct connected faces
         var polyA = hullA.faces[closestFaceA];
         polyA.connectedFaces = [];
-        for(var i=0; i<hullA.faces.length; i++)
-            for(var j=0; j<hullA.faces[i].length; j++)
-            if(polyA.indexOf(hullA.faces[i][j])!==-1 && // Sharing a vertex
-               i!==closestFaceA && // Not the one we are looking for connections from
-               polyA.connectedFaces.indexOf(i)===-1 // Not already added
-              )
-                polyA.connectedFaces.push(i);
-        
+        for(var i=0; i<hullA.faces.length; i++){
+            for(var j=0; j<hullA.faces[i].length; j++){
+                if(polyA.indexOf(hullA.faces[i][j])!==-1 /* Sharing a vertex*/ && i!==closestFaceA /* Not the one we are looking for connections from */ && polyA.connectedFaces.indexOf(i)===-1 /* Not already added */ ){
+                    polyA.connectedFaces.push(i);
+                }
+            }
+        }
         // Clip the polygon to the back of the planes of all faces of hull A, that are adjacent to the witness face
         var numContacts = pVtxIn.length;
         var numVerticesA = polyA.length;
@@ -3386,7 +3352,7 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
                 var otherFace = polyA.connectedFaces[e0];
                 this.faceNormals[otherFace].copy(localPlaneNormal);
                 var localPlaneEq = planeConstant(otherFace);
-                
+
                 localPlaneNormal.copy(planeNormalWS);
                 quatA.vmult(planeNormalWS,planeNormalWS);
                 //posA.vadd(planeNormalWS,planeNormalWS);
@@ -3395,26 +3361,30 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
                 planeNormalWS1.copy(planeNormalWS);
                 planeEqWS = planeEqWS1;
             }
-    
+
             // Clip face against our constructed plane
             //console.log("clipping polygon ",printFace(closestFaceA)," against plane ",planeNormalWS, planeEqWS);
             this.clipFaceAgainstPlane(pVtxIn, pVtxOut, planeNormalWS, planeEqWS);
             //console.log(" - clip result: ",pVtxOut);
-    
+
             // Throw away all clipped points, but save the reamining until next clip
-            while(pVtxIn.length)  pVtxIn.shift();
-            while(pVtxOut.length) pVtxIn.push(pVtxOut.shift());
+            while(pVtxIn.length){
+                pVtxIn.shift();
+            }
+            while(pVtxOut.length){
+                pVtxIn.push(pVtxOut.shift());
+            }
         }
-    
+
         //console.log("Resulting points after clip:",pVtxIn);
-            
+
         // only keep contact points that are behind the witness face
         this.faceNormals[closestFaceA].copy(localPlaneNormal);
-        
+
         var localPlaneEq = planeConstant(closestFaceA);
         localPlaneNormal.copy(planeNormalWS);
         quatA.vmult(planeNormalWS,planeNormalWS);
-        
+
         var planeEqWS = localPlaneEq - planeNormalWS.dot(posA);
         for (var i=0; i<pVtxIn.length; i++){
             var depth = planeNormalWS.dot(pVtxIn[i]) + planeEqWS; //???
@@ -3423,7 +3393,7 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
                 console.log("clamped: depth="+depth+" to minDist="+(minDist+""));
                 depth = minDist;
             }
-            
+
             if (depth <=maxDist){
                 var point = pVtxIn[i];
                 if(depth<=0){
@@ -3433,16 +3403,16 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
                       "plane",planeNormalWS.toString(),
                       "planeConstant",planeEqWS);*/
                     var p = {
-                    point:point,
-                    normal:planeNormalWS,
-                    depth: depth,
+                        point:point,
+                        normal:planeNormalWS,
+                        depth: depth,
                     };
                     result.push(p);
                 }
             }
         }
-    }
-    
+    };
+
     /**
      * @method clipFaceAgainstPlane
      * @memberof CANNON.ConvexPolyhedron
@@ -3453,23 +3423,27 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
      * @param float planeConstant The constant in the mathematical plane equation
      */
     this.clipFaceAgainstPlane = function(inVertices,outVertices, planeNormal, planeConstant){
-        if(!(planeNormal instanceof CANNON.Vec3))
+        if(!(planeNormal instanceof CANNON.Vec3)){
             throw new Error("planeNormal must be Vec3, "+planeNormal+" given");
-        if(!(inVertices instanceof Array))
+        }
+        if(!(inVertices instanceof Array)) {
             throw new Error("invertices must be Array, "+inVertices+" given");
-        if(!(outVertices instanceof Array))
+        }
+        if(!(outVertices instanceof Array)){
             throw new Error("outvertices must be Array, "+outVertices+" given");
+        }
         var n_dot_first, n_dot_last;
         var numVerts = inVertices.length;
-    
-        if(numVerts < 2)
+
+        if(numVerts < 2){
             return outVertices;
-        
+        }
+
         var firstVertex = inVertices[inVertices.length-1];
         var lastVertex =   inVertices[0];
-    
+
         n_dot_first = planeNormal.dot(firstVertex) + planeConstant;
-        
+
         for(var vi = 0; vi < numVerts; vi++){
             lastVertex = inVertices[vi];
             n_dot_last = planeNormal.dot(lastVertex) + planeConstant;
@@ -3483,8 +3457,8 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
                     // Start < 0, end >= 0, so output intersection
                     var newv = new CANNON.Vec3();
                     firstVertex.lerp(lastVertex,
-                             n_dot_first / (n_dot_first - n_dot_last),
-                             newv);
+                                     n_dot_first / (n_dot_first - n_dot_last),
+                                     newv);
                     outVertices.push(newv);
                 }
             } else {
@@ -3492,8 +3466,8 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
                     // Start >= 0, end < 0 so output intersection and end
                     var newv = new CANNON.Vec3();
                     firstVertex.lerp(lastVertex,
-                             n_dot_first / (n_dot_first - n_dot_last),
-                             newv);
+                                     n_dot_first / (n_dot_first - n_dot_last),
+                                     newv);
                     outVertices.push(newv);
                     outVertices.push(lastVertex);
                 }
@@ -3502,7 +3476,7 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
             n_dot_first = n_dot_last;
         }
         return outVertices;
-    }
+    };
 
     var that = this;
     function normalOfFace(i,target){
@@ -3521,29 +3495,12 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
         return c;
     }
 
-    /*
-     * @brief Get face normal given 3 vertices
-     * @param CANNON.Vec3 va
-     * @param CANNON.Vec3 vb
-     * @param CANNON.Vec3 vc
-     * @param CANNON.Vec3 target
-     * @todo unit test?
-     */
-    var cb = new CANNON.Vec3();
-    var ab = new CANNON.Vec3();
-    function normal( va, vb, vc, target ) {
-        vb.vsub(va,ab);
-        vc.vsub(vb,cb);
-        cb.cross(ab,target);
-        if ( !target.isZero() ) {
-            target.normalize();
-        }
-    }
 
     function printFace(i){
-    var f = that.faces[i], s = "";
-    for(var j=0; j<f.length; j++)
-        s += " ("+that.vertices[f[j]]+")";
+        var f = that.faces[i], s = "";
+        for(var j=0; j<f.length; j++){
+            s += " ("+that.vertices[f[j]]+")";
+        }
         return s;
     }
 
@@ -3554,7 +3511,7 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
      * @return bool
      */
     function equalEdge( ea, eb ) {
-        return ea[ 0 ] === eb[ 1 ] && ea[ 1 ] === eb[ 0 ]; 
+        return ea[ 0 ] === eb[ 1 ] && ea[ 1 ] === eb[ 0 ];
     }
 
     /*
@@ -3575,7 +3532,7 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
         target.x = 1.0 / 12.0 * mass * ( 2*y*2*y + 2*z*2*z );
         target.y = 1.0 / 12.0 * mass * ( 2*x*2*x + 2*z*2*z );
         target.z = 1.0 / 12.0 * mass * ( 2*y*2*y + 2*x*2*x );
-    }
+    };
 
     var worldVert = new CANNON.Vec3();
     this.computeAABB = function(){
@@ -3587,14 +3544,23 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
         aabbmax.set(-Infinity,-Infinity,-Infinity);
         for(var i=0; i<n; i++){
             var v = vertices[i];
-            if     (v.x < aabbmin.x) aabbmin.x = v.x;
-            else if(v.x > aabbmax.x) aabbmax.x = v.x;
-            if     (v.y < aabbmin.y) aabbmin.y = v.y;
-            else if(v.y > aabbmax.y) aabbmax.y = v.y;
-            if     (v.z < aabbmin.z) aabbmin.z = v.z;
-            else if(v.z > aabbmax.z) aabbmax.z = v.z;
+            if     (v.x < aabbmin.x){
+                aabbmin.x = v.x;
+            } else if(v.x > aabbmax.x){
+                aabbmax.x = v.x;
+            }
+            if     (v.y < aabbmin.y){
+                aabbmin.y = v.y;
+            } else if(v.y > aabbmax.y){
+                aabbmax.y = v.y;
+            }
+            if     (v.z < aabbmin.z){
+                aabbmin.z = v.z;
+            } else if(v.z > aabbmax.z){
+                aabbmax.z = v.z;
+            }
         }
-    }
+    };
 
     //this.computeAABB();
 };
@@ -3602,14 +3568,48 @@ CANNON.ConvexPolyhedron = function( points , faces , normals ) {
 CANNON.ConvexPolyhedron.prototype = new CANNON.Shape();
 CANNON.ConvexPolyhedron.prototype.constructor = CANNON.ConvexPolyhedron;
 
+// Updates .worldVertices and sets .worldVerticesNeedsUpdate to false.
+CANNON.ConvexPolyhedron.prototype.computeWorldVertices = function(position,quat){
+    var N = this.vertices.length;
+    while(this.worldVertices.length < N){
+        this.worldVertices.push( new CANNON.Vec3() );
+    }
+
+    var verts = this.vertices,
+        worldVerts = this.worldVertices;
+    for(var i=0; i!==N; i++){
+        quat.vmult( verts[i] , worldVerts[i] );
+        position.vadd( worldVerts[i] , worldVerts[i] );
+    }
+
+    this.worldVerticesNeedsUpdate = false;
+};
+
+// Updates .worldVertices and sets .worldVerticesNeedsUpdate to false.
+CANNON.ConvexPolyhedron.prototype.computeWorldFaceNormals = function(quat){
+    var N = this.faceNormals.length;
+    while(this.worldFaceNormals.length < N){
+        this.worldFaceNormals.push( new CANNON.Vec3() );
+    }
+
+    var normals = this.faceNormals,
+        worldNormals = this.worldFaceNormals;
+    for(var i=0; i!==N; i++){
+        quat.vmult( normals[i] , worldNormals[i] );
+    }
+
+    this.worldFaceNormalsNeedsUpdate = false;
+};
+
 CANNON.ConvexPolyhedron.prototype.computeBoundingSphereRadius = function(){
     // Assume points are distributed with local (0,0,0) as center
     var max2 = 0;
     var verts = this.vertices;
     for(var i=0, N=verts.length; i!==N; i++) {
         var norm2 = verts[i].norm2();
-        if(norm2>max2)
+        if(norm2 > max2){
             max2 = norm2;
+        }
     }
     this.boundingSphereRadius = Math.sqrt(max2);
     this.boundingSphereRadiusNeedsUpdate = false;
@@ -3624,20 +3624,33 @@ CANNON.ConvexPolyhedron.prototype.calculateWorldAABB = function(pos,quat,min,max
         quat.vmult(tempWorldVertex,tempWorldVertex);
         pos.vadd(tempWorldVertex,tempWorldVertex);
         var v = tempWorldVertex;
-        if     (v.x < minx || minx===undefined) minx = v.x;
-        else if(v.x > maxx || maxx===undefined) maxx = v.x;
-        if     (v.y < miny || miny===undefined) miny = v.y;
-        else if(v.y > maxy || maxy===undefined) maxy = v.y;
-        if     (v.z < minz || minz===undefined) minz = v.z;
-        else if(v.z > maxz || maxz===undefined) maxz = v.z;
-    } 
+        if     (v.x < minx || minx===undefined){
+            minx = v.x;
+        } else if(v.x > maxx || maxx===undefined){
+            maxx = v.x;
+        }
+
+        if     (v.y < miny || miny===undefined){
+            miny = v.y;
+        } else if(v.y > maxy || maxy===undefined){
+            maxy = v.y;
+        }
+
+        if     (v.z < minz || minz===undefined){
+            minz = v.z;
+        } else if(v.z > maxz || maxz===undefined){
+            maxz = v.z;
+        }
+    }
     min.set(minx,miny,minz);
     max.set(maxx,maxy,maxz);
 };
 
 // Just approximate volume!
 CANNON.ConvexPolyhedron.prototype.volume = function(){
-    if(this.boundingSphereRadiusNeedsUpdate) this.computeBoundingSphereRadius();
+    if(this.boundingSphereRadiusNeedsUpdate){
+        this.computeBoundingSphereRadius();
+    }
     return 4.0 * Math.PI * this.boundingSphereRadius / 3.0;
 };
 
@@ -3660,10 +3673,22 @@ CANNON.ConvexPolyhedron.prototype.transformAllPoints = function(offset,quat){
 
     // Apply rotation
     if(quat){
+        // Rotate vertices
         for(var i=0; i<n; i++){
             var v = verts[i];
             quat.vmult(v,v);
         }
+        // Rotate face normals
+        for(var i=0; i<this.faceNormals.length; i++){
+            var v = this.faceNormals[i];
+            quat.vmult(v,v);
+        }
+        /*
+        // Rotate edges
+        for(var i=0; i<this.uniqueEdges.length; i++){
+            var v = this.uniqueEdges[i];
+            quat.vmult(v,v);
+        }*/
     }
 
     // Apply offset
@@ -3717,7 +3742,9 @@ CANNON.ConvexPolyhedron.prototype.pointIsInside = function(p){
 
 
 function pointInConvex(p){
-}/**
+}
+
+/**
  * @class CANNON.Cylinder
  * @extends CANNON.ConvexPolyhedron
  * @author schteppe / https://github.com/schteppe
@@ -3756,35 +3783,431 @@ CANNON.Cylinder = function( radiusTop, radiusBottom, height , numSegments ) {
             verts.push(new CANNON.Vec3(radiusBottom*cos(theta),
                                        radiusBottom*sin(theta),
                                        -height*0.5));
-            bottomface.push(2*(i+1));
+            bottomface.push(2*i+2);
             // Top
             verts.push(new CANNON.Vec3(radiusTop*cos(theta),
                                        radiusTop*sin(theta),
                                        height*0.5));
-            topface.push(2*(i+1)+1);
+            topface.push(2*i+3);
             // Normal
             normals.push(new CANNON.Vec3(cos(thetaN),
                                          sin(thetaN),
                                          0));
             // Face
-            faces.push([2*i, 2*i+1, 2*(i+1), 2*(i+1)+1]);
+            faces.push([2*i+2, 2*i+3, 2*i+1,2*i]);
         } else {
-            faces.push([2*i, 2*i+1, 0, 1]);
-          
+            faces.push([0,1, 2*i+1, 2*i]); // Connect
             // Normal
             normals.push(new CANNON.Vec3(cos(thetaN),sin(thetaN),0));
         }
-    } 
+    }
     faces.push(topface);
     normals.push(new CANNON.Vec3(0,0,1));
-    faces.push(bottomface);
+
+    // Reorder bottom face
+    var temp = [];
+    for(var i=0; i<bottomface.length; i++){
+        temp.push(bottomface[bottomface.length - i - 1]);
+    }
+    faces.push(temp);
     normals.push(new CANNON.Vec3(0,0,-1));
 
     this.type = CANNON.Shape.types.CONVEXPOLYHEDRON;
     CANNON.ConvexPolyhedron.call( this, verts, faces, normals );
 };
 
-CANNON.Cylinder.prototype = new CANNON.ConvexPolyhedron();/*global CANNON:true */
+CANNON.Cylinder.prototype = new CANNON.ConvexPolyhedron();
+
+/**
+ * @class CANNON.Broadphase
+ * @author schteppe
+ * @brief Base class for broadphase implementations
+ */
+CANNON.Broadphase = function(){
+    /**
+    * @property CANNON.World world
+    * @brief The world to search for collisions in.
+    * @memberof CANNON.Broadphase
+    */
+    this.world = null;
+};
+CANNON.Broadphase.prototype.constructor = CANNON.BroadPhase;
+
+/**
+ * @method collisionPairs
+ * @memberof CANNON.Broadphase
+ * @brief Get the collision pairs from the world
+ * @param CANNON.World world The world to search in
+ * @param Array p1 Empty array to be filled with body objects
+ * @param Array p2 Empty array to be filled with body objects
+ * @return array An array with two subarrays of body indices
+ */
+CANNON.Broadphase.prototype.collisionPairs = function(world,p1,p2){
+    throw new Error("collisionPairs not implemented for this BroadPhase class!");
+};
+
+var Broadphase_needBroadphaseCollision_STATIC_OR_KINEMATIC = CANNON.Body.STATIC | CANNON.Body.KINEMATIC;
+CANNON.Broadphase.prototype.needBroadphaseCollision = function(bodyA,bodyB){
+    // Check collision filter masks
+    if( (bodyA.collisionFilterGroup & bodyB.collisionFilterMask)===0 || (bodyB.collisionFilterGroup & bodyA.collisionFilterMask)===0){
+        return false;
+    }
+
+    // Check motionstate
+    if(((bodyA.motionstate & Broadphase_needBroadphaseCollision_STATIC_OR_KINEMATIC)!==0 || bodyA.isSleeping()) &&
+       ((bodyB.motionstate & Broadphase_needBroadphaseCollision_STATIC_OR_KINEMATIC)!==0 || bodyB.isSleeping())) {
+        // Both bodies are static, kinematic or sleeping. Skip.
+        return false;
+    }
+
+    return true;
+};
+
+var Broadphase_collisionPairs_r = new CANNON.Vec3(), // Temp objects
+    Broadphase_collisionPairs_normal =  new CANNON.Vec3(),
+    Broadphase_collisionPairs_quat =  new CANNON.Quaternion(),
+    Broadphase_collisionPairs_relpos  =  new CANNON.Vec3();
+CANNON.Broadphase.prototype.doBoundingSphereBroadphase = function(bi,bj,pairs1,pairs2){
+
+    // Local fast access
+    var types = CANNON.Shape.types;
+    var BOX_SPHERE_COMPOUND_CONVEX = types.SPHERE | types.BOX | types.COMPOUND | types.CONVEXPOLYHEDRON,
+        PLANE = types.PLANE,
+        STATIC_OR_KINEMATIC = CANNON.Body.STATIC | CANNON.Body.KINEMATIC;
+
+    // Temp vecs
+    var r = Broadphase_collisionPairs_r,
+        normal = Broadphase_collisionPairs_normal,
+        quat = Broadphase_collisionPairs_quat,
+        relpos = Broadphase_collisionPairs_relpos;
+
+    var bishape = bi.shape, bjshape = bj.shape;
+    if(bishape && bjshape){
+        var ti = bishape.type, tj = bjshape.type;
+
+        // --- Box / sphere / compound / convexpolyhedron collision ---
+        if((ti & BOX_SPHERE_COMPOUND_CONVEX) && (tj & BOX_SPHERE_COMPOUND_CONVEX)){
+            // Rel. position
+            bj.position.vsub(bi.position,r);
+
+            // Update bounding spheres if needed
+            if(bishape.boundingSphereRadiusNeedsUpdate){
+                bishape.computeBoundingSphereRadius();
+            }
+            if(bjshape.boundingSphereRadiusNeedsUpdate){
+                bjshape.computeBoundingSphereRadius();
+            }
+
+            var boundingRadiusSum = bishape.boundingSphereRadius + bjshape.boundingSphereRadius;
+            if(r.norm2() < boundingRadiusSum*boundingRadiusSum){
+                pairs1.push(bi);
+                pairs2.push(bj);
+            }
+
+            // --- Sphere/box/compound/convexpoly versus plane ---
+        } else if((ti & BOX_SPHERE_COMPOUND_CONVEX) && (tj & types.PLANE) || (tj & BOX_SPHERE_COMPOUND_CONVEX) && (ti & types.PLANE)){
+            var planeBody = (ti===PLANE) ? bi : bj, // Plane
+                otherBody = (ti!==PLANE) ? bi : bj; // Other
+
+            var otherShape = otherBody.shape;
+            var planeShape = planeBody.shape;
+
+            // Rel. position
+            otherBody.position.vsub(planeBody.position,r);
+
+            if(planeShape.worldNormalNeedsUpdate){
+                planeShape.computeWorldNormal(planeBody.quaternion);
+            }
+
+            normal = planeShape.worldNormal;
+
+            if(otherShape.boundingSphereRadiusNeedsUpdate){
+                otherShape.computeBoundingSphereRadius();
+            }
+
+            var q = r.dot(normal) - otherShape.boundingSphereRadius;
+            if(q < 0.0){
+                pairs1.push(bi);
+                pairs2.push(bj);
+            }
+        }
+    } else {
+        // Particle without shape
+        if(!bishape && !bjshape){
+            // No collisions between 2 particles
+        } else {
+            var particle = bishape ? bj : bi;
+            var other = bishape ? bi : bj;
+            var otherShape = other.shape;
+            var type = otherShape.type;
+
+            if(type & BOX_SPHERE_COMPOUND_CONVEX){
+                if(type === types.SPHERE){ // particle-sphere
+                    particle.position.vsub(other.position,relpos);
+                    if(otherShape.radius*otherShape.radius >= relpos.norm2()){
+                        pairs1.push(particle);
+                        pairs2.push(other);
+                    }
+                } else if(type===types.CONVEXPOLYHEDRON || type===types.BOX || type===types.COMPOUND){
+
+                    if(otherShape.boundingSphereRadiusNeedsUpdate){
+                        otherShape.computeBoundingSphereRadius();
+                    }
+                    var R = otherShape.boundingSphereRadius;
+                    particle.position.vsub(other.position,relpos);
+                    if(R*R >= relpos.norm2()){
+                        pairs1.push(particle);
+                        pairs2.push(other);
+                    }
+                }
+            } else if(type === types.PLANE){
+                // particle/plane
+                var plane = other;
+                normal.set(0,0,1);
+                plane.quaternion.vmult(normal,normal);
+                particle.position.vsub(plane.position,relpos);
+                if(normal.dot(relpos)<=0.0){
+                    pairs1.push(particle);
+                    pairs2.push(other);
+                }
+            }
+        }
+    }
+};
+
+var Broadphase_makePairsUnique_temp = {},
+    Broadphase_makePairsUnique_p1 = [],
+    Broadphase_makePairsUnique_p2 = [];
+CANNON.Broadphase.prototype.makePairsUnique = function(pairs1,pairs2){
+    var t = Broadphase_makePairsUnique_temp,
+        p1 = Broadphase_makePairsUnique_p1,
+        p2 = Broadphase_makePairsUnique_p2,
+        N = pairs1.length;
+
+    for(var i=0; i!==N; i++){
+        p1[i] = pairs1[i];
+        p2[i] = pairs2[i];
+    }
+
+    pairs1.length = 0;
+    pairs2.length = 0;
+
+    for(var i=0; i!==N; i++){
+        var id1 = p1[i].id,
+            id2 = p2[i].id;
+        var idx = id1 < id2 ? id1+","+id2 :  id2+","+id1;
+        t[idx] = i;
+    }
+
+    for(var idx in t){
+        var i = t[idx];
+        pairs1.push(p1[i]);
+        pairs2.push(p2[i]);
+        delete t[idx];
+    }
+};
+
+
+/**
+ * @class CANNON.NaiveBroadphase
+ * @brief Naive broadphase implementation, used in lack of better ones.
+ * @description The naive broadphase looks at all possible pairs without restriction, therefore it has complexity N^2 (which is bad)
+ * @extends CANNON.Broadphase
+ */
+CANNON.NaiveBroadphase = function(){
+    CANNON.Broadphase.apply(this);
+};
+CANNON.NaiveBroadphase.prototype = new CANNON.Broadphase();
+CANNON.NaiveBroadphase.prototype.constructor = CANNON.NaiveBroadphase;
+
+/**
+ * @method collisionPairs
+ * @memberof CANNON.NaiveBroadphase
+ * @brief Get all the collision pairs in the physics world
+ * @param CANNON.World world
+ * @return array An array containing two arrays of integers. The integers corresponds to the body indices.
+ */
+CANNON.NaiveBroadphase.prototype.collisionPairs = function(world,pairs1,pairs2){
+    var n = world.numObjects(),
+    bodies = world.bodies;
+
+    // Naive N^2 ftw!
+    for(var i=0; i!==n; i++){
+        for(var j=0; j!==i; j++){
+            var bi = bodies[i], bj = bodies[j];
+
+            if(!this.needBroadphaseCollision(bi,bj)){
+                continue;
+            }
+
+            this.doBoundingSphereBroadphase(bi,bj,pairs1,pairs2);
+        }
+    }
+};
+
+
+/**
+ * @class CANNON.GridBroadphase
+ * @brief Axis aligned uniform grid broadphase.
+ * @extends CANNON.Broadphase
+ * @todo Needs support for more than just planes and spheres.
+ */
+CANNON.GridBroadphase = function(aabbMin,aabbMax,nx,ny,nz){
+    CANNON.Broadphase.apply(this);
+    this.nx = nx || 10;
+    this.ny = ny || 10;
+    this.nz = nz || 10;
+    this.aabbMin = aabbMin || new CANNON.Vec3(100,100,100);
+    this.aabbMax = aabbMax || new CANNON.Vec3(-100,-100,-100);
+    this.bins = [];
+};
+CANNON.GridBroadphase.prototype = new CANNON.Broadphase();
+CANNON.GridBroadphase.prototype.constructor = CANNON.GridBroadphase;
+
+/**
+ * @method collisionPairs
+ * @memberof CANNON.GridBroadphase
+ * @brief Get all the collision pairs in the physics world
+ * @param CANNON.World world
+ */
+var GridBroadphase_collisionPairs_d = new CANNON.Vec3();
+var GridBroadphase_collisionPairs_binPos = new CANNON.Vec3();
+CANNON.GridBroadphase.prototype.collisionPairs = function(world,pairs1,pairs2){
+    var N = world.numObjects(),
+        bodies = world.bodies;
+
+    var max = this.aabbMax,
+        min = this.aabbMin,
+        nx = this.nx,
+        ny = this.ny,
+        nz = this.nz;
+
+    var xmax = max.x,
+        ymax = max.y,
+        zmax = max.z,
+        xmin = min.x,
+        ymin = min.y,
+        zmin = min.z;
+
+    var xmult = nx / (xmax-xmin),
+        ymult = ny / (ymax-ymin),
+        zmult = nz / (zmax-zmin);
+
+    var binsizeX = (xmax - xmin) / nx,
+        binsizeY = (ymax - ymin) / ny,
+        binsizeZ = (zmax - zmin) / nz;
+
+    var types = CANNON.Shape.types;
+    var SPHERE =            types.SPHERE,
+        PLANE =             types.PLANE,
+        BOX =               types.BOX,
+        COMPOUND =          types.COMPOUND,
+        CONVEXPOLYHEDRON =  types.CONVEXPOLYHEDRON;
+
+    var bins=this.bins,
+        Nbins=nx*ny*nz;
+
+    // Reset bins
+    for(var i=bins.length-1; i!==Nbins; i++){
+        bins.push([]);
+    }
+    for(var i=0; i!==Nbins; i++){
+        bins[i].length = 0;
+    }
+
+    var floor = Math.floor;
+
+    // Put all bodies into the bins
+    for(var i=0; i!==N; i++){
+        var bi = bodies[i];
+        var si = bi.shape;
+
+        switch(si.type){
+        case SPHERE:
+            // Put in bin
+            // check if overlap with other bins
+            var x = bi.position.x,
+                y = bi.position.y,
+                z = bi.position.z;
+            var r = si.radius;
+
+            var xi1 = floor(xmult * (x-r - xmin)),
+                yi1 = floor(ymult * (y-r - ymin)),
+                zi1 = floor(zmult * (z-r - zmin)),
+                xi2 = floor(xmult * (x+r - xmin)),
+                yi2 = floor(ymult * (y+r - ymin)),
+                zi2 = floor(zmult * (z+r - zmin));
+
+            for(var j=xi1; j!==xi2+1; j++){
+                for(var k=yi1; k!==yi2+1; k++){
+                    for(var l=zi1; l!==zi2+1; l++){
+                        var xi = j,
+                            yi = k,
+                            zi = l;
+                        var idx = xi * ( ny - 1 ) * ( nz - 1 ) + yi * ( nz - 1 ) + zi;
+                        if(idx >= 0 && idx < Nbins){
+                            bins[ idx ].push( bi );
+                        }
+                    }
+                }
+            }
+            break;
+
+        case PLANE:
+            // Put in all bins for now
+            // @todo put only in bins that are actually intersecting the plane
+            var d = GridBroadphase_collisionPairs_d;
+            var binPos = GridBroadphase_collisionPairs_binPos;
+            var binRadiusSquared = (binsizeX*binsizeX + binsizeY*binsizeY + binsizeZ*binsizeZ) * 0.25;
+
+            var planeNormal = si.worldNormal;
+            if(si.worldNormalNeedsUpdate){
+                si.computeWorldNormal(bi.quaternion);
+            }
+
+            for(var j=0; j!==nx; j++){
+                for(var k=0; k!==ny; k++){
+                    for(var l=0; l!==nz; l++){
+                        var xi = j,
+                            yi = k,
+                            zi = l;
+
+                        binPos.set(xi*binsizeX+xmin, yi*binsizeY+ymin, zi*binsizeZ+zmin);
+                        binPos.vsub(bi.position, d);
+
+                        if(d.dot(planeNormal) < binRadiusSquared){
+                            var idx = xi * ( ny - 1 ) * ( nz - 1 ) + yi * ( nz - 1 ) + zi;
+                            bins[ idx ].push( bi );
+                        }
+                    }
+                }
+            }
+            break;
+
+        default:
+            console.warn("Shape "+si.type+" not supported in GridBroadphase!");
+            break;
+        }
+    }
+
+    // Check each bin
+    for(var i=0; i!==Nbins; i++){
+        var bin = bins[i];
+
+        // Do N^2 broadphase inside
+        for(var j=0, NbodiesInBin=bin.length; j!==NbodiesInBin; j++){
+            var bi = bin[j];
+
+            for(var k=0; k!==j; k++){
+                var bj = bin[k];
+                this.doBoundingSphereBroadphase(bi,bj,pairs1,pairs2);
+            }
+        }
+    }
+
+    this.makePairsUnique(pairs1,pairs2);
+};
+
 
 /**
  * @class CANNON.Solver
@@ -3807,16 +4230,18 @@ CANNON.Solver.prototype.addEquation = function(eq){
 };
 
 CANNON.Solver.prototype.removeEquation = function(eq){
-    var i = this.equations.indexOf(eq);
-    if(i!=-1)
-        this.equations.splice(i,1);
+    var eqs = this.equations;
+    var i = eqs.indexOf(eq);
+    if(i !== -1){
+        eqs.splice(i,1);
+    }
 };
 
 CANNON.Solver.prototype.removeAllEquations = function(){
-    this.equations = [];
+    this.equations.length = 0;
 };
 
-/*global CANNON:true */
+
 
 /**
  * @class CANNON.Solver
@@ -3845,6 +4270,9 @@ CANNON.GSSolver = function(){
 };
 CANNON.GSSolver.prototype = new CANNON.Solver();
 
+var GSSolver_solve_lambda = []; // Just temporary number holders that we want to reuse each solve.
+var GSSolver_solve_invCs = [];
+var GSSolver_solve_Bs = [];
 CANNON.GSSolver.prototype.solve = function(dt,world){
 
     var d = this.d,
@@ -3861,20 +4289,20 @@ CANNON.GSSolver.prototype.solve = function(dt,world){
         h = dt;
 
     // Things that does not change during iteration can be computed once
-    var invCs = [];
-    var Bs = [];
+    var invCs = GSSolver_solve_invCs;
+    var Bs = GSSolver_solve_Bs;
 
     // Create array for lambdas
-    var lambda = [];
+    var lambda = GSSolver_solve_lambda;
     for(var i=0; i!==Neq; i++){
         var c = equations[i];
         if(c.spookParamsNeedsUpdate){
             c.updateSpookParams(h);
             c.spookParamsNeedsUpdate = false;
         }
-        lambda.push(0.0);
-        Bs.push(c.computeB(h));
-        invCs.push(1.0 / c.computeC());
+        lambda[i] = 0.0;
+        Bs[i] = c.computeB(h);
+        invCs[i] = 1.0 / c.computeC();
     }
 
     var q, B, c, invC, deltalambda, deltalambdaTot, GWlambda, lambdaj;
@@ -3889,7 +4317,9 @@ CANNON.GSSolver.prototype.solve = function(dt,world){
                 vlambda=b.vlambda,
                 wlambda=b.wlambda;
             vlambda.set(0,0,0);
-            if(wlambda) wlambda.set(0,0,0);
+            if(wlambda){
+                wlambda.set(0,0,0);
+            }
         }
 
         // Iterate over equations
@@ -3923,23 +4353,24 @@ CANNON.GSSolver.prototype.solve = function(dt,world){
             }
 
             // If the total error is small enough - stop iterate
-            if(deltalambdaTot*deltalambdaTot < tolSquared) break;
+            if(deltalambdaTot*deltalambdaTot < tolSquared){
+                break;
+            }
         }
 
         // Add result to velocity
         for(i=0; i!==Nbodies; i++){
             var b=bodies[i], v=b.velocity, w=b.angularVelocity;
             v.vadd(b.vlambda, v);
-            if(w)
+            if(w){
                 w.vadd(b.wlambda, w);
+            }
         }
     }
 
-    errorTot = deltalambdaTot;
-
-    return iter; 
+    return iter;
 };
-/*global CANNON:true */
+
 
 CANNON.SplitSolver = function(subsolver){
     CANNON.Solver.call(this);
@@ -3948,16 +4379,31 @@ CANNON.SplitSolver = function(subsolver){
 CANNON.SplitSolver.prototype = new CANNON.Solver();
 
 // Returns the number of subsystems
+var SplitSolver_solve_nodes = []; // All allocated node objects
+var SplitSolver_solve_eqs = [];   // Temp array
+var SplitSolver_solve_bds = [];   // Temp array
+var SplitSolver_solve_dummyWorld = {bodies:null}; // Temp object
 CANNON.SplitSolver.prototype.solve = function(dt,world){
-    var nodes=[],
+    var nodes=SplitSolver_solve_nodes,
         bodies=world.bodies,
         equations=this.equations,
         Neq=equations.length,
         Nbodies=bodies.length,
         subsolver=this.subsolver;
-    for(var i=0; i<Nbodies; i++)
+    // Create needed nodes, reuse if possible
+    for(var i=nodes.length; i!==Nbodies; i++){
         nodes.push({ body:bodies[i], children:[], eqs:[], visited:false });
-    for(var k=0; k<Neq; k++){
+    }
+
+    // Reset node values
+    for(var i=0; i!==Nbodies; i++){
+        var node = nodes[i];
+        node.body = bodies[i];
+        node.children.length = 0;
+        node.eqs.length = 0;
+        node.visited = false;
+    }
+    for(var k=0; k!==Neq; k++){
         var eq=equations[k],
             i=bodies.indexOf(eq.bi),
             j=bodies.indexOf(eq.bj),
@@ -3971,11 +4417,12 @@ CANNON.SplitSolver.prototype.solve = function(dt,world){
 
     var STATIC = CANNON.Body.STATIC;
     function getUnvisitedNode(nodes){
-        var N = nodes.length;
-        for(var i=0; i<N; i++){
+        var Nnodes = nodes.length;
+        for(var i=0; i!==Nnodes; i++){
             var node = nodes[i];
-            if(!node.visited && !(node.body.motionstate & STATIC))
+            if(!node.visited && !(node.body.motionstate & STATIC)){
                 return node;
+            }
         }
         return false;
     }
@@ -3997,92 +4444,37 @@ CANNON.SplitSolver.prototype.solve = function(dt,world){
         }
     }
 
-    var child, n=0;
+    var child, n=0, eqs=SplitSolver_solve_eqs, bds=SplitSolver_solve_bds;
+    function visitFunc(node){
+        bds.push(node.body);
+        var Neqs = node.eqs.length;
+        for(var i=0; i!==Neqs; i++){
+            var eq = node.eqs[i];
+            if(eqs.indexOf(eq) === -1){
+                eqs.push(eq);
+            }
+        }
+    }
+    var dummyWorld = SplitSolver_solve_dummyWorld;
     while((child = getUnvisitedNode(nodes))){
-        var eqs=[], bds=[];
-        bfs(child,function(node){
-            bds.push(node.body);
-            for(var i=0; i<node.eqs.length; i++)
-                if(eqs.indexOf(node.eqs[i]) == -1)
-                    eqs.push(node.eqs[i]);
-        });
+        eqs.length = 0;
+        bds.length = 0;
+        bfs(child,visitFunc);
 
-        for(var i=0; i<eqs.length; i++)
+        var Neqs = eqs.length;
+        for(var i=0; i!==Neqs; i++){
             subsolver.addEquation(eqs[i]);
+        }
 
-        var iter = subsolver.solve(dt,{bodies:bds});
+        dummyWorld.bodies = bds;
+        var iter = subsolver.solve(dt,dummyWorld);
         subsolver.removeAllEquations();
         n++;
     }
 
     return n;
 };
-/*global CANNON:true */
 
-/**
- * @class CANNON.EventTarget
- * @see https://github.com/mrdoob/eventtarget.js/
- */
-CANNON.EventTarget = function () {
-    var listeners = {};
-    this.addEventListener = function ( type, listener ) {
-        if ( listeners[ type ] == undefined ) {
-            listeners[ type ] = [];
-        }
-        if ( listeners[ type ].indexOf( listener ) === - 1 ) {
-            listeners[ type ].push( listener );
-        }
-    };
-    this.dispatchEvent = function ( event ) {
-        for ( var listener in listeners[ event.type ] ) {
-            listeners[ event.type ][ listener ]( event );
-        }
-    };
-    this.removeEventListener = function ( type, listener ) {
-        var index = listeners[ type ].indexOf( listener );
-        if ( index !== - 1 ) {
-            listeners[ type ].splice( index, 1 );
-        }
-    };
-};/*global CANNON:true */
-
-/**
- * @class CANNON.ObjectPool
- * @brief For pooling objects that can be reused.
- */
-CANNON.ObjectPool = function(){
-    this.objects = [];
-    this.type = Object;
-};
-
-CANNON.ObjectPool.prototype.release = function(){
-    for(var i in arguments)
-        this.objects.push(arguments[i]);
-};
-
-CANNON.ObjectPool.prototype.get = function(){
-    if(this.objects.length===0)
-        return this.constructObject();
-    else
-        return this.objects.pop();
-};
-
-CANNON.ObjectPool.prototype.constructObject = function(){
-    throw new Error("constructObject() not implemented in this ObjectPool subclass yet!");
-};/*global CANNON:true */
-
-/**
- * @class CANNON.Vec3Pool
- */
-CANNON.Vec3Pool = function(){
-    CANNON.ObjectPool.call(this);
-    this.type = CANNON.Vec3;
-};
-CANNON.Vec3Pool.prototype = new CANNON.ObjectPool();
-
-CANNON.Vec3Pool.prototype.constructObject = function(){
-    return new CANNON.Vec3();
-};/*global CANNON:true */
 
 /**
  * @class CANNON.Material
@@ -4099,7 +4491,7 @@ CANNON.Material = function(name){
     this.id = -1;
 };
 
-/*global CANNON:true */
+
 
 /**
  * @class CANNON.ContactMaterial
@@ -4119,10 +4511,10 @@ CANNON.ContactMaterial = function(m1, m2, friction, restitution){
     this.materials = [m1,m2];
 
     /// Kinetic friction
-    this.friction = friction!=undefined ? Number(friction) : 0.3;
+    this.friction = friction!==undefined ? Number(friction) : 0.3;
 
     /// Restitution
-    this.restitution =      restitution!=undefined ?      Number(restitution) :      0.3;
+    this.restitution =      restitution !== undefined ?      Number(restitution) :      0.3;
 
     // Parameters to pass to the constraint when it is created
     this.contactEquationStiffness = 1e7;
@@ -4131,7 +4523,7 @@ CANNON.ContactMaterial = function(m1, m2, friction, restitution){
     this.frictionEquationRegularizationTime = 3;
 };
 
-/*global CANNON:true */
+
 
 /**
  * @class CANNON.World
@@ -4155,7 +4547,6 @@ CANNON.World = function(){
      */
     this.contacts = [];
     this.frictionEquations = [];
-    this.frictionEquationPool = [];
 
     /**
      * @property int quatNormalizeSkip
@@ -4231,6 +4622,7 @@ CANNON.World = function(){
     this.contactgen = new CANNON.ContactGenerator();
 
     // Collision matrix, size N*N
+    // @todo rename to collisionMatrix
     this.collision_matrix = [];
 
     /**
@@ -4255,21 +4647,6 @@ CANNON.World = function(){
      * @memberof CANNON.World
      */
     this.defaultContactMaterial = new CANNON.ContactMaterial(this.defaultMaterial,this.defaultMaterial,0.3,0.0);
-
-    this.temp = {
-        gvec:new CANNON.Vec3(),
-        vi:new CANNON.Vec3(),
-        vj:new CANNON.Vec3(),
-        wi:new CANNON.Vec3(),
-        wj:new CANNON.Vec3(),
-        t1:new CANNON.Vec3(),
-        t2:new CANNON.Vec3(),
-        rixn:new CANNON.Vec3(),
-        rjxn:new CANNON.Vec3(),
-        step_q:new CANNON.Quaternion(),
-        step_w:new CANNON.Quaternion(),
-        step_wq:new CANNON.Quaternion()
-    };
 
     /**
      * @property bool doProfiling
@@ -4320,23 +4697,7 @@ CANNON.World.prototype.getContactMaterial = function(m1,m2){
  * @return int
  */
 CANNON.World.prototype.numObjects = function(){
-  return this.bodies.length;
-};
-
-/**
- * @method clearCollisionState
- * @memberof CANNON.World
- * @brief Clear the contact state for a body.
- * @param CANNON.Body body
- */
-CANNON.World.prototype.clearCollisionState = function(body){
-    var n = this.numObjects();
-    var i = body.id;
-    for(var idx=0; idx<n; idx++){
-        var j = idx;
-        if(i>j) cm[j+i*n] = 0;
-        else    cm[i+j*n] = 0;
-    }
+    return this.bodies.length;
 };
 
 // Keep track of contacts for current and previous timestep
@@ -4344,41 +4705,43 @@ CANNON.World.prototype.clearCollisionState = function(body){
 // 1: Contact
 CANNON.World.prototype.collisionMatrixGet = function(i,j,current){
     var N = this.bodies.length;
-    if(typeof(current)=="undefined") current = true;
+    if(typeof(current)==="undefined"){
+        current = true;
+    }
     // i == column
     // j == row
-    if((current && i<j) || // Current uses upper part of the matrix
-       (!current && i>j)){ // Previous uses lower part of the matrix
+    if((current && i<j /* Current uses upper part of the matrix */) || (!current && i>j /* Previous uses lower part of the matrix */)){
         var temp = j;
         j = i;
         i = temp;
     }
     return this.collision_matrix[i+j*N];
-}
+};
 
 CANNON.World.prototype.collisionMatrixSet = function(i,j,value,current){
     var N = this.bodies.length;
-    if(typeof(current)==="undefined") current = true;
-    if( (current && i<j) || // Current uses upper part of the matrix
-        (!current && i>j)){ // Previous uses lower part of the matrix
+    if(typeof(current)==="undefined"){
+        current = true;
+    }
+    if( (current && i<j) || (!current && i>j)){
         var temp = j;
         j = i;
         i = temp;
     }
     this.collision_matrix[i+j*N] = value;
-}
+};
 
 // transfer old contact state data to T-1
 CANNON.World.prototype.collisionMatrixTick = function(){
-    var N = this.bodies.length
-    for(var i=0; i<N; i++){
-        for(var j=0; j<i; j++){
+    var N = this.bodies.length;
+    for(var i=0; i!==N; i++){
+        for(var j=0; j!==i; j++){
             var currentState = this.collisionMatrixGet(i,j,true);
             this.collisionMatrixSet(i,j,currentState,false);
             this.collisionMatrixSet(i,j,0,true);
         }
     }
-}
+};
 
 /**
  * @method add
@@ -4400,11 +4763,11 @@ CANNON.World.prototype.add = function(body){
         body.angularVelocity.copy(body.initAngularVelocity);
         body.quaternion.copy(body.initQuaternion);
     }
-    
+
     // Increase size of collision matrix to (n+1)*(n+1)=n*n+2*n+1 elements, it was n*n last.
-    for(var i=0; i<2*n+1; i++)
+    for(var i=0; i<2*n+1; i++){
         this.collision_matrix.push(0);
-    //this.collision_matrix = new Int16Array((n+1)*(n+1));
+    }
 };
 
 /**
@@ -4426,8 +4789,9 @@ CANNON.World.prototype.addConstraint = function(c){
  */
 CANNON.World.prototype.removeConstraint = function(c){
     var idx = this.constraints.indexOf(c);
-    if(idx!=-1)
+    if(idx!==-1){
         this.constraints.splice(idx,1);
+    }
 };
 
 /**
@@ -4437,7 +4801,7 @@ CANNON.World.prototype.removeConstraint = function(c){
  * @return int
  */
 CANNON.World.prototype.id = function(){
-  return this.nextId++;
+    return this.nextId++;
 };
 
 /**
@@ -4450,14 +4814,18 @@ CANNON.World.prototype.remove = function(body){
     body.world = null;
     var n = this.numObjects();
     var bodies = this.bodies;
-    for(var i in bodies)
-        if(bodies[i].id == body.id)
+    var i;
+    for(i=0; i!==bodies.length; i++){
+        if(bodies[i].id === body.id){
             bodies.splice(i,1);
-
+            break;
+        }
+    }
 
     // Reduce size of collision matrix to (n-1)*(n-1)=n*n-2*n+1 elements, it was n*n last.
-    for(var i=0; i<2*n-1; i++)
+    for(i=0; i!==2*n-1; i++){
         this.collision_matrix.pop();
+    }
 
     // Reset collision matrix
     //this.collision_matrix = new Int16Array((n-1)*(n-1));
@@ -4470,27 +4838,14 @@ CANNON.World.prototype.remove = function(body){
  * @param CANNON.Material m
  */
 CANNON.World.prototype.addMaterial = function(m){
-    if(m.id==-1){
+    if(m.id === -1){
         var n = this.materials.length;
         this.materials.push(m);
         m.id = this.materials.length-1;
 
-        if(true){
-            // Increase size of collision matrix to (n+1)*(n+1)=n*n+2*n+1 elements, it was n*n last.
-            for(var i=0; i<2*n+1; i++)
-                this.mats2cmat.push(-1);
-            //this.mats2cmat[];
-        } else {
-            // Enlarge matrix
-            var newcm = new Int16Array((this.materials.length) * (this.materials.length));
-            for(var i=0; i<newcm.length; i++)
-                newcm[i] = -1;
-
-            // Copy over old values
-            for(var i=0; i<this.materials.length-1; i++)
-                for(var j=0; j<this.materials.length-1; j++)
-                    newcm[i+this.materials.length*j] = this.mats2cmat[i+(this.materials.length-1)*j];
-            this.mats2cmat = newcm;
+        // Increase size of collision matrix to (n+1)*(n+1)=n*n+2*n+1 elements, it was n*n last.
+        for(var i=0; i!==2*n+1; i++){
+            this.mats2cmat.push(-1);
         }
     }
 };
@@ -4503,34 +4858,36 @@ CANNON.World.prototype.addMaterial = function(m){
  */
 CANNON.World.prototype.addContactMaterial = function(cmat) {
 
-  // Add materials if they aren't already added
-  this.addMaterial(cmat.materials[0]);
-  this.addMaterial(cmat.materials[1]);
+    // Add materials if they aren't already added
+    this.addMaterial(cmat.materials[0]);
+    this.addMaterial(cmat.materials[1]);
 
-  // Save (material1,material2) -> (contact material) reference for easy access later
-  // Make sure i>j, ie upper right matrix
-  if(cmat.materials[0].id > cmat.materials[1].id){
-    i = cmat.materials[0].id;
-    j = cmat.materials[1].id;
-  } else {
-    j = cmat.materials[0].id;
-    i = cmat.materials[1].id;
-  }
-    
-  // Add contact material
-  this.contactmaterials.push(cmat);
-  cmat.id = this.contactmaterials.length-1;
+    // Save (material1,material2) -> (contact material) reference for easy access later
+    // Make sure i>j, ie upper right matrix
+    var i,j;
+    if(cmat.materials[0].id > cmat.materials[1].id){
+        i = cmat.materials[0].id;
+        j = cmat.materials[1].id;
+    } else {
+        j = cmat.materials[0].id;
+        i = cmat.materials[1].id;
+    }
 
-  // Add current contact material to the material table
-  this.mats2cmat[i+this.materials.length*j] = cmat.id; // index of the contact material
+    // Add contact material
+    this.contactmaterials.push(cmat);
+    cmat.id = this.contactmaterials.length-1;
+
+    // Add current contact material to the material table
+    this.mats2cmat[i+this.materials.length*j] = cmat.id; // index of the contact material
 };
 
 CANNON.World.prototype._now = function(){
-    if(window.performance.webkitNow)
+    if(window.performance.webkitNow){
         return window.performance.webkitNow();
-    else
+    } else {
         return Date.now();
-}
+    }
+};
 
 /**
  * @method step
@@ -4538,9 +4895,31 @@ CANNON.World.prototype._now = function(){
  * @brief Step the simulation
  * @param float dt
  */
+var World_step_postStepEvent = {type:"postStep"}, // Reusable event objects to save memory
+    World_step_preStepEvent = {type:"preStep"},
+    World_step_collideEvent = {type:"collide", "with":null, contact:null },
+    World_step_oldContacts = [], // Pools for unused objects
+    World_step_frictionEquationPool = [],
+    World_step_p1 = [], // Reusable arrays for collision pairs
+    World_step_p2 = [],
+    World_step_gvec = new CANNON.Vec3(), // Temporary vectors and quats
+    World_step_vi = new CANNON.Vec3(),
+    World_step_vj = new CANNON.Vec3(),
+    World_step_wi = new CANNON.Vec3(),
+    World_step_wj = new CANNON.Vec3(),
+    World_step_t1 = new CANNON.Vec3(),
+    World_step_t2 = new CANNON.Vec3(),
+    World_step_rixn = new CANNON.Vec3(),
+    World_step_rjxn = new CANNON.Vec3(),
+    World_step_step_q = new CANNON.Quaternion(),
+    World_step_step_w = new CANNON.Quaternion(),
+    World_step_step_wq = new CANNON.Quaternion();
 CANNON.World.prototype.step = function(dt){
     var world = this,
         that = this,
+        contacts = this.contacts,
+        p1 = World_step_p1,
+        p2 = World_step_p2,
         N = this.numObjects(),
         bodies = this.bodies,
         solver = this.solver,
@@ -4552,20 +4931,25 @@ CANNON.World.prototype.step = function(dt){
         profilingStart,
         cm = this.collision_matrix,
         constraints = this.constraints,
-        FrictionEquation = CANNON.FrictionEquation;
+        FrictionEquation = CANNON.FrictionEquation,
+        frictionEquationPool = World_step_frictionEquationPool,
+        gnorm = gravity.norm(),
+        gx = gravity.x,
+        gy = gravity.y,
+        gz = gravity.z,
+        i=0;
 
-    if(doProfiling) profilingStart = now();
+
+    if(doProfiling){
+        profilingStart = now();
+    }
 
     if(dt===undefined){
-        if(this.last_dt) dt = this.last_dt;
-        else             dt = this.default_dt;
+        dt = this.last_dt || this.default_dt;
     }
 
     // Add gravity to all objects
-    var gx = gravity.x,
-        gy = gravity.y,
-        gz = gravity.z;
-    for(var i=0; i!==N; i++){
+    for(i=0; i!==N; i++){
         var bi = bodies[i];
         if(bi.motionstate & DYNAMIC){ // Only for dynamic bodies
             var f = bi.force, m = bi.mass;
@@ -4576,33 +4960,45 @@ CANNON.World.prototype.step = function(dt){
     }
 
     // 1. Collision detection
-    if(doProfiling) profilingStart = now();
-    var pairs = this.broadphase.collisionPairs(this);
-    var p1 = pairs[0];
-    var p2 = pairs[1];
-    if(doProfiling) profile.broadphase = now() - profilingStart;
+    if(doProfiling){ profilingStart = now(); }
+    p1.length = 0; // Clean up pair arrays from last step
+    p2.length = 0;
+    this.broadphase.collisionPairs(this,p1,p2);
+    if(doProfiling){ profile.broadphase = now() - profilingStart; }
 
     this.collisionMatrixTick();
 
     // Generate contacts
-    if(doProfiling) profilingStart = now();
-    var oldcontacts = this.contacts;
-    this.contacts = [];
+    if(doProfiling){ profilingStart = now(); }
+    var oldcontacts = World_step_oldContacts;
+    var NoldContacts = contacts.length;
+
+    for(i=0; i!==NoldContacts; i++){
+        oldcontacts.push(contacts[i]);
+    }
+    contacts.length = 0;
+
     this.contactgen.getContacts(p1,p2,
                                 this,
-                                this.contacts,
+                                contacts,
                                 oldcontacts // To be reused
                                 );
-    if(doProfiling) profile.nearphase = now() - profilingStart;
+    if(doProfiling){
+        profile.nearphase = now() - profilingStart;
+    }
 
     // Loop over all collisions
-    if(doProfiling) profilingStart = now();
-    var temp = this.temp;
-    var contacts = this.contacts;
+    if(doProfiling){
+        profilingStart = now();
+    }
     var ncontacts = contacts.length;
 
-    this.frictionEquationPool = this.frictionEquationPool.concat(this.frictionEquations);
-    this.frictionEquations = [];
+    // Transfer FrictionEquation from current list to the pool for reuse
+    var NoldFrictionEquations = this.frictionEquations.length;
+    for(i=0; i!==NoldFrictionEquations; i++){
+        frictionEquationPool.push(this.frictionEquations[i]);
+    }
+    this.frictionEquations.length = 0;
 
     for(var k=0; k!==ncontacts; k++){
 
@@ -4619,9 +5015,9 @@ CANNON.World.prototype.step = function(dt){
         var cm = this.getContactMaterial(bi.material,bj.material) || this.defaultContactMaterial;
         var mu = cm.friction;
         var e = cm.restitution;
-          
+
         // g = ( xj + rj - xi - ri ) .dot ( ni )
-        var gvec = temp.gvec;
+        var gvec = World_step_gvec;
         gvec.set(bj.position.x + c.rj.x - bi.position.x - c.ri.x,
                  bj.position.y + c.rj.y - bi.position.y - c.ri.y,
                  bj.position.z + c.rj.z - bi.position.z - c.ri.z);
@@ -4640,15 +5036,17 @@ CANNON.World.prototype.step = function(dt){
             if(mu > 0){
 
                 // Create 2 tangent equations
-                var mug = mu*gravity.norm();
+                var mug = mu*gnorm;
                 var reducedMass = (bi.invMass + bj.invMass);
-                if(reducedMass != 0) reducedMass = 1/reducedMass;
-                var pool = this.frictionEquationPool;
+                if(reducedMass > 0){
+                    reducedMass = 1/reducedMass;
+                }
+                var pool = frictionEquationPool;
                 var c1 = pool.length ? pool.pop() : new FrictionEquation(bi,bj,mug*reducedMass);
                 var c2 = pool.length ? pool.pop() : new FrictionEquation(bi,bj,mug*reducedMass);
                 this.frictionEquations.push(c1);
                 this.frictionEquations.push(c2);
-               
+
                 c1.bi = c2.bi = bi;
                 c1.bj = c2.bj = bj;
                 c1.minForce = c2.minForce = -mug*reducedMass;
@@ -4671,23 +5069,32 @@ CANNON.World.prototype.step = function(dt){
             // Now we know that i and j are in contact. Set collision matrix state
             this.collisionMatrixSet(i,j,1,true);
 
-            if(this.collisionMatrixGet(i,j,true)!=this.collisionMatrixGet(i,j,false)){
+            if(this.collisionMatrixGet(i,j,true)!==this.collisionMatrixGet(i,j,false)){
                 // First contact!
-                bi.dispatchEvent({type:"collide", "with":bj, contact:c });
-                bj.dispatchEvent({type:"collide", "with":bi, contact:c });
+                // We reuse the collideEvent object, otherwise we will end up creating new objects for each new contact, even if there's no event listener attached.
+                World_step_collideEvent.with = bj;
+                World_step_collideEvent.contact = c;
+                bi.dispatchEvent(World_step_collideEvent);
+
+                World_step_collideEvent.with = bi;
+                bj.dispatchEvent(World_step_collideEvent);
+
                 bi.wakeUp();
                 bj.wakeUp();
             }
         }
     }
-    if(doProfiling) profile.makeContactConstraints = now() - profilingStart;
+    if(doProfiling){
+        profile.makeContactConstraints = now() - profilingStart;
+    }
 
-    var bi;
+    if(doProfiling){
+        profilingStart = now();
+    }
 
-    if(doProfiling) profilingStart = now();
-    
     // Add user-added constraints
-    for(var i=0, Nconstraints=constraints.length; i!==Nconstraints; i++){
+    var Nconstraints = constraints.length;
+    for(i=0; i!==Nconstraints; i++){
         var c = constraints[i];
         c.update();
         for(var j=0, Neq=c.equations.length; j!==Neq; j++){
@@ -4697,51 +5104,61 @@ CANNON.World.prototype.step = function(dt){
     }
 
     // Solve the constrained system
-    solver.solve(dt,world);
+    solver.solve(dt,this);
 
-    if(doProfiling) profile.solve = now() - profilingStart;
+    if(doProfiling){
+        profile.solve = now() - profilingStart;
+    }
 
     // Remove all contacts from solver
     solver.removeAllEquations();
 
     // Apply damping, see http://code.google.com/p/bullet/issues/detail?id=74 for details
     var pow = Math.pow;
-    for(var i=0; i!==N; i++){
-        bi = bodies[i];
+    for(i=0; i!==N; i++){
+        var bi = bodies[i];
         if(bi.motionstate & DYNAMIC){ // Only for dynamic bodies
             var ld = pow(1.0 - bi.linearDamping,dt);
             var v = bi.velocity;
             v.mult(ld,v);
             var av = bi.angularVelocity;
-            if(av){	
+            if(av){
                 var ad = pow(1.0 - bi.angularDamping,dt);
                 av.mult(ad,av);
             }
         }
     }
 
-    that.dispatchEvent({type:"preStep"});
+    this.dispatchEvent(World_step_postStepEvent);
 
     // Invoke pre-step callbacks
-    for(var i=0; i!==N; i++){
+    for(i=0; i!==N; i++){
         var bi = bodies[i];
-        bi.preStep && bi.preStep.call(bi);
+        if(bi.preStep){
+            bi.preStep.call(bi);
+        }
     }
 
     // Leap frog
     // vnew = v + h*f/m
     // xnew = x + h*vnew
-    if(doProfiling) profilingStart = now();
-    var q = temp.step_q; 
-    var w = temp.step_w;
-    var wq = temp.step_wq;
-    var stepnumber = world.stepnumber;
+    if(doProfiling){
+        profilingStart = now();
+    }
+    var q = World_step_step_q;
+    var w = World_step_step_w;
+    var wq = World_step_step_wq;
+    var stepnumber = this.stepnumber;
     var DYNAMIC_OR_KINEMATIC = CANNON.Body.DYNAMIC | CANNON.Body.KINEMATIC;
     var quatNormalize = stepnumber % (this.quatNormalizeSkip+1) === 0;
     var quatNormalizeFast = this.quatNormalizeFast;
     var half_dt = dt * 0.5;
-    for(var i=0; i!==N; i++){
+    var PLANE = CANNON.Shape.types.PLANE,
+        CONVEX = CANNON.Shape.types.CONVEXPOLYHEDRON;
+
+    for(i=0; i!==N; i++){
         var b = bodies[i],
+            s = b.shape,
             force = b.force,
             tau = b.tau;
         if((b.motionstate & DYNAMIC_OR_KINEMATIC)){ // Only for dynamic
@@ -4754,13 +5171,13 @@ CANNON.World.prototype.step = function(dt){
             velo.x += force.x * invMass * dt;
             velo.y += force.y * invMass * dt;
             velo.z += force.z * invMass * dt;
-          
+
             if(b.angularVelocity){
                 angularVelo.x += tau.x * invInertia.x * dt;
                 angularVelo.y += tau.y * invInertia.y * dt;
                 angularVelo.z += tau.z * invInertia.z * dt;
             }
-          
+
             // Use new velocity  - leap frog
             if(!b.isSleeping()){
                 pos.x += velo.x * dt;
@@ -4768,74 +5185,83 @@ CANNON.World.prototype.step = function(dt){
                 pos.z += velo.z * dt;
 
                 if(b.angularVelocity){
-                    w.set(  angularVelo.x, angularVelo.y, angularVelo.z, 0);
+                    w.set(angularVelo.x, angularVelo.y, angularVelo.z, 0);
                     w.mult(quat,wq);
                     quat.x += half_dt * wq.x;
                     quat.y += half_dt * wq.y;
                     quat.z += half_dt * wq.z;
                     quat.w += half_dt * wq.w;
                     if(quatNormalize){
-                        if(quatNormalizeFast)
+                        if(quatNormalizeFast){
                             quat.normalizeFast();
-                        else
+                        } else {
                             quat.normalize();
+                        }
                     }
+                }
+            }
+
+            if(s){
+                switch(s.type){
+                case PLANE:
+                    s.worldNormalNeedsUpdate = true;
+                    break;
+                case CONVEX:
+                    s.worldFaceNormalsNeedsUpdate = true;
+                    s.worldVerticesNeedsUpdate = true;
+                    break;
                 }
             }
         }
         b.force.set(0,0,0);
-        if(b.tau) b.tau.set(0,0,0);
+        if(b.tau){
+            b.tau.set(0,0,0);
+        }
     }
-    if(doProfiling) profile.integrate = now() - profilingStart;
+
+    if(doProfiling){
+        profile.integrate = now() - profilingStart;
+    }
 
     // Update world time
     this.time += dt;
     this.stepnumber += 1;
 
-    that.dispatchEvent({type:"postStep"});
+    this.dispatchEvent(World_step_postStepEvent);
 
     // Invoke post-step callbacks
-    for(var i=0; i!==N; i++){
+    for(i=0; i!==N; i++){
         var bi = bodies[i];
         var postStep = bi.postStep;
-        postStep && postStep.call(bi);
+        if(postStep){
+            postStep.call(bi);
+        }
     }
 
     // Update world inertias
-    for(var i=0; i!==N; i++){
+    // @todo should swap autoUpdate mechanism for .xxxNeedsUpdate
+    for(i=0; i!==N; i++){
         var b = bodies[i];
-        if(b.inertiaWorldAutoUpdate)
+        if(b.inertiaWorldAutoUpdate){
             b.quaternion.vmult(b.inertia,b.inertiaWorld);
-        if(b.invInertiaWorldAutoUpdate)
+        }
+        if(b.invInertiaWorldAutoUpdate){
             b.quaternion.vmult(b.invInertia,b.invInertiaWorld);
+        }
     }
 
     // Sleeping update
-    if(world.allowSleep){
-        for(var i=0; i!==N; i++){
-           bodies[i].sleepTick(this.time);
+    if(this.allowSleep){
+        for(i=0; i!==N; i++){
+            bodies[i].sleepTick(this.time);
         }
     }
 };
-/**
- * @class CANNON.ContactPoint
- * @brief A contact point between two bodies.
- * @description Should be generated by the ContactGenerator.
- * @param CANNON.Body bi
- * @param CANNON.Body bj
- */
-CANNON.ContactPoint = function(bi, bj, normalConstraint, contactMaterial, tangentConstraint1, tangentConstraint2){
-    this.bi = bi;
-    this.bj = bj;
-    this.n = normalConstraint;
-    this.t1 = tangentConstraint1;
-    this.t2 = tangentConstraint2;
-    this.contactMaterial = contactMaterial;
-};/*global CANNON:true */
+
 
 /**
  * @class CANNON.ContactGenerator
- * @brief Helper class for the World. Generates ContactPoints.
+ * @brief Helper class for the World. Generates ContactEquations.
  * @todo Sphere-ConvexPolyhedron contacts
  * @todo Contact reduction
  */
@@ -4852,7 +5278,7 @@ CANNON.ContactGenerator = function(){
     var contactPointPool = [];
 
     var v3pool = new CANNON.Vec3Pool();
-    
+
     /*
      * Make a contact object.
      * @return object
@@ -4864,8 +5290,9 @@ CANNON.ContactGenerator = function(){
             c.bi = bi;
             c.bj = bj;
             return c;
-        } else
+        } else {
             return new CANNON.ContactEquation(bi,bj);
+        }
     }
 
     /*
@@ -4874,9 +5301,13 @@ CANNON.ContactGenerator = function(){
      */
     function swapResult(r){
         var temp;
-        temp = r.ri; r.ri = r.rj; r.rj = temp;
+        temp = r.ri;
+        r.ri = r.rj;
+        r.rj = temp;
         r.ni.negate(r.ni);
-        temp = r.bi; r.bi = r.bj; r.bj = temp;
+        temp = r.bi;
+        r.bi = r.bj;
+        r.bj = temp;
     }
 
     function sphereSphere(result,si,sj,xi,xj,qi,qj,bi,bj){
@@ -4914,8 +5345,9 @@ CANNON.ContactGenerator = function(){
         xi.vsub(xj,point_on_plane_to_sphere);
         r.ni.mult(r.ni.dot(point_on_plane_to_sphere),plane_to_sphere_ortho);
         point_on_plane_to_sphere.vsub(plane_to_sphere_ortho,r.rj); // The sphere position projected to plane
-        if(plane_to_sphere_ortho.norm2() <= si.radius*si.radius)
+        if(plane_to_sphere_ortho.norm2() <= si.radius*si.radius){
             result.push(r);
+        }
     }
 
     // See http://bulletphysics.com/Bullet/BulletFull/SphereTriangleDetector_8cpp_source.html
@@ -4925,7 +5357,7 @@ CANNON.ContactGenerator = function(){
     function pointInPolygon(verts, normal, p){
         var positiveResult = null;
         var N = verts.length;
-        for(var i=0; i<N; i++){
+        for(var i=0; i!==N; i++){
             var v = verts[i];
 
             // Get edge to the next vertex
@@ -4946,10 +5378,13 @@ CANNON.ContactGenerator = function(){
 
             // If all such dot products have same sign, we are inside the polygon.
             if(positiveResult===null || (r>0 && positiveResult===true) || (r<=0 && positiveResult===false)){
-                if(positiveResult===null) positiveResult = r>0;
+                if(positiveResult===null){
+                    positiveResult = r>0;
+                }
                 continue;
-            } else
+            } else {
                 return false; // Encountered some other sign. Exit.
+            }
         }
 
         // If we got here, all dot products were of the same sign.
@@ -4975,24 +5410,25 @@ CANNON.ContactGenerator = function(){
 
         // Check side (plane) intersections
         var found = false;
-	// Store the resulting side penetration info
-	var side_ns = sphereBox_side_ns;
-	var side_ns1 = sphereBox_side_ns1;
-	var side_ns2 = sphereBox_side_ns2;
-	var side_h = null;
-	var side_penetrations = 0;
-	var side_dot1 = 0;
-	var side_dot2 = 0;
-	var side_distance = null;
+
+        // Store the resulting side penetration info
+        var side_ns = sphereBox_side_ns;
+        var side_ns1 = sphereBox_side_ns1;
+        var side_ns2 = sphereBox_side_ns2;
+        var side_h = null;
+        var side_penetrations = 0;
+        var side_dot1 = 0;
+        var side_dot2 = 0;
+        var side_distance = null;
         for(var idx=0,nsides=sides.length; idx!==nsides && found===false; idx++){
-	    // Get the plane side normal (ns)
+            // Get the plane side normal (ns)
             var ns = sphereBox_ns;
             sides[idx].copy(ns);
 
             var h = ns.norm();
             ns.normalize();
 
-	    // The normal/distance dot product tells which side of the plane we are
+            // The normal/distance dot product tells which side of the plane we are
             var dot = box_to_sphere.dot(ns);
 
             if(dot<h+R && dot>0){
@@ -5008,22 +5444,22 @@ CANNON.ContactGenerator = function(){
                 var dot1 = box_to_sphere.dot(ns1);
                 var dot2 = box_to_sphere.dot(ns2);
                 if(dot1<h1 && dot1>-h1 && dot2<h2 && dot2>-h2){
-		    var dist = Math.abs(dot-h-R);
-		    if(side_distance===null || dist < side_distance){
-			side_distance = dist;
-			side_dot1 = dot1;
-			side_dot2 = dot2;
-			side_h = h;
-			ns.copy(side_ns);
-			ns1.copy(side_ns1);
-			ns2.copy(side_ns2);
-			side_penetrations++;
-		    }
+                    var dist = Math.abs(dot-h-R);
+                    if(side_distance===null || dist < side_distance){
+                        side_distance = dist;
+                        side_dot1 = dot1;
+                        side_dot2 = dot2;
+                        side_h = h;
+                        ns.copy(side_ns);
+                        ns1.copy(side_ns1);
+                        ns2.copy(side_ns2);
+                        side_penetrations++;
+                    }
                 }
             }
         }
-	if(side_penetrations){
-	    found = true;
+        if(side_penetrations){
+            found = true;
             var r = makeResult(bi,bj);
             side_ns.mult(-R,r.ri); // Sphere r
             side_ns.copy(r.ni);
@@ -5034,7 +5470,7 @@ CANNON.ContactGenerator = function(){
             side_ns2.mult(side_dot2,side_ns2);
             side_ns.vadd(side_ns2,r.rj);
             result.push(r);
-	}
+        }
 
         // Check corners
         var rj = v3pool.get();
@@ -5043,12 +5479,21 @@ CANNON.ContactGenerator = function(){
             for(var k=0; k!==2 && !found; k++){
                 for(var l=0; l!==2 && !found; l++){
                     rj.set(0,0,0);
-                    if(j) rj.vadd(sides[0],rj);
-                    else  rj.vsub(sides[0],rj);
-                    if(k) rj.vadd(sides[1],rj);
-                    else  rj.vsub(sides[1],rj);
-                    if(l) rj.vadd(sides[2],rj);
-                    else  rj.vsub(sides[2],rj);
+                    if(j){
+                        rj.vadd(sides[0],rj);
+                    } else {
+                        rj.vsub(sides[0],rj);
+                    }
+                    if(k){
+                        rj.vadd(sides[1],rj);
+                    } else {
+                        rj.vsub(sides[1],rj);
+                    }
+                    if(l){
+                        rj.vadd(sides[2],rj);
+                    } else {
+                        rj.vsub(sides[2],rj);
+                    }
 
                     // World position of corner
                     xj.vadd(rj,sphere_to_corner);
@@ -5077,9 +5522,9 @@ CANNON.ContactGenerator = function(){
         var orthogonal = v3pool.get();
         var dist = v3pool.get();
         var Nsides = sides.length;
-        for(var j=0; j<Nsides && !found; j++){
-            for(var k=0; k<Nsides && !found; k++){
-                if(j%3!=k%3){
+        for(var j=0; j!==Nsides && !found; j++){
+            for(var k=0; k!==Nsides && !found; k++){
+                if(j%3 !== k%3){
                     // Get edge tangent
                     sides[k].cross(sides[j],edgeTangent);
                     edgeTangent.normalize();
@@ -5089,10 +5534,12 @@ CANNON.ContactGenerator = function(){
                     r.vsub(xj,r);
                     var orthonorm = r.dot(edgeTangent); // distance from edge center to sphere center in the tangent direction
                     edgeTangent.mult(orthonorm,orthogonal); // Vector from edge center to sphere center in the tangent direction
-                    
+
                     // Find the third side orthogonal to this one
                     var l = 0;
-                    while(l==j%3 || l==k%3) l++;
+                    while(l===j%3 || l===k%3){
+                        l++;
+                    }
 
                     // vec from edge center to sphere projected to the plane orthogonal to the edge tangent
                     xi.copy(dist);
@@ -5103,7 +5550,7 @@ CANNON.ContactGenerator = function(){
                     // Distances in tangent direction and distance in the plane orthogonal to it
                     var tdist = Math.abs(orthonorm);
                     var ndist = dist.norm();
-                    
+
                     if(tdist < sides[l].norm() && ndist<R){
                         found = true;
                         var res = makeResult(bi,bj);
@@ -5126,8 +5573,6 @@ CANNON.ContactGenerator = function(){
         v3pool.release(edgeTangent,edgeCenter,r,orthogonal,dist);
     }
 
-
-
     var convex_to_sphere = new CANNON.Vec3();
     var sphereConvex_edge = new CANNON.Vec3();
     var sphereConvex_edgeUnit = new CANNON.Vec3();
@@ -5147,7 +5592,7 @@ CANNON.ContactGenerator = function(){
         var penetrating_sides = [];
 
         // Check corners
-        for(var i=0; i<verts.length; i++){
+        for(var i=0; i!==verts.length; i++){
             var v = verts[i];
 
             // World position of corner
@@ -5183,7 +5628,7 @@ CANNON.ContactGenerator = function(){
             worldPoint.vadd(xj,worldPoint); // Arbitrary point in the face
 
             var worldSpherePointClosestToPlane = sphereConvex_worldSpherePointClosestToPlane;
-            worldNormal.mult(-R,worldSpherePointClosestToPlane)
+            worldNormal.mult(-R,worldSpherePointClosestToPlane);
             xi.vadd(worldSpherePointClosestToPlane,worldSpherePointClosestToPlane);
 
             var penetrationVec = sphereConvex_penetrationVec;
@@ -5223,10 +5668,16 @@ CANNON.ContactGenerator = function(){
                     v3pool.release(penetrationSpherePoint);
 
                     result.push(r);
+
+                    // Release world vertices
+                    for(var j=0, Nfaceverts=faceVerts.length; j!==Nfaceverts; j++){
+                        v3pool.release(faceVerts[j]);
+                    }
+
                     return; // We only expect *one* face contact
                 } else {
                     // Edge?
-                    for(var j=0; j<face.length; j++){
+                    for(var j=0; j!==face.length; j++){
 
                         // Get two world transformed vertices
                         var v1 = v3pool.get();
@@ -5239,19 +5690,26 @@ CANNON.ContactGenerator = function(){
                         // Construct edge vector
                         var edge = sphereConvex_edge;
                         v2.vsub(v1,edge);
-                        edgeUnit = sphereConvex_edgeUnit;
+
+                        // Construct the same vector, but normalized
+                        var edgeUnit = sphereConvex_edgeUnit;
                         edge.unit(edgeUnit);
 
                         // p is xi projected onto the edge
                         var p = v3pool.get();
                         var v1_to_xi = v3pool.get();
                         xi.vsub(v1, v1_to_xi);
-                        edgeUnit.mult(v1_to_xi.dot(edgeUnit), p);
+                        var dot = v1_to_xi.dot(edgeUnit);
+                        edgeUnit.mult(dot, p);
                         p.vadd(v1, p);
 
+                        // Compute a vector from p to the center of the sphere
                         var xi_to_p = v3pool.get();
                         p.vsub(xi, xi_to_p);
-                        if(xi_to_p.norm2() < R*R){
+
+                        // Collision if the edge-sphere distance is less than the radius
+                        // AND if p is in between v1 and v2
+                        if(dot > 0 && dot*dot<edge.norm2() && xi_to_p.norm2() < R*R){ // Collision if the edge-sphere distance is less than the radius
                             // Edge contact!
                             var r = makeResult(bi,bj);
                             p.vsub(xj,r.rj);
@@ -5261,6 +5719,18 @@ CANNON.ContactGenerator = function(){
 
                             r.ni.mult(R,r.ri);
                             result.push(r);
+
+                            // Release world vertices
+                            for(var j=0, Nfaceverts=faceVerts.length; j!==Nfaceverts; j++){
+                                v3pool.release(faceVerts[j]);
+                            }
+
+                            v3pool.release(v1);
+                            v3pool.release(v2);
+                            v3pool.release(p);
+                            v3pool.release(xi_to_p);
+                            v3pool.release(v1_to_xi);
+
                             return;
                         }
 
@@ -5320,8 +5790,10 @@ CANNON.ContactGenerator = function(){
 
             var tempVec = newPos;
 
-            if(!si) nr+= r.length;
-            for(var j=0; j<r.length; j++){
+            if(!si){
+                nr+= r.length;
+            }
+            for(var j=0; j!==r.length; j++){
                 // The "rj" vector is in world coords, though we must add the world child offset vector.
                 //r[j].rj.vadd(qj.vmult(sj.childOffsets[i]),r[j].rj);
                 qj.vmult(sj.childOffsets[i],tempVec);
@@ -5344,7 +5816,7 @@ CANNON.ContactGenerator = function(){
         normal.set(0,0,1);
         qi.vmult(normal,normal); // Turn normal according to plane orientation
         var relpos = planeConvex_relpos;
-        for(var i=0; i<sj.vertices.length; i++){
+        for(var i=0; i!==sj.vertices.length; i++){
             sj.vertices[i].copy(v);
             // Transform to world coords
             qj.vmult(v,v);
@@ -5379,7 +5851,8 @@ CANNON.ContactGenerator = function(){
             var res = [];
             var q = convexConvex_q;
             si.clipAgainstHull(xi,qi,sj,xj,qj,sepAxis,-100,100,res);
-            for(var j=0; j<res.length; j++){
+            //console.log(res.length);
+            for(var j=0; j!==res.length; j++){
                 var r = makeResult(bi,bj);
                 sepAxis.negate(r.ni);
                 res[j].normal.negate(q);
@@ -5447,10 +5920,12 @@ CANNON.ContactGenerator = function(){
     var particleConvex_local = new CANNON.Vec3();
     var particleConvex_normal = new CANNON.Vec3();
     var particleConvex_penetratedFaceNormal = new CANNON.Vec3();
+    var particleConvex_vertexToParticle = new CANNON.Vec3();
+    var particleConvex_worldPenetrationVec = new CANNON.Vec3();
     function particleConvex(result,si,sj,xi,xj,qi,qj,bi,bj){
-
         var penetratedFaceIndex = -1;
         var penetratedFaceNormal = particleConvex_penetratedFaceNormal;
+        var worldPenetrationVec = particleConvex_worldPenetrationVec;
         var minPenetration = null;
         var numDetectedFaces = 0;
 
@@ -5463,26 +5938,24 @@ CANNON.ContactGenerator = function(){
 
         if(sj.pointIsInside(local)){
 
+            if(sj.worldVerticesNeedsUpdate){
+                sj.computeWorldVertices(xj,qj);
+            }
+            if(sj.worldFaceNormalsNeedsUpdate){
+                sj.computeWorldFaceNormals(qj);
+            }
+
             // For each world polygon in the polyhedra
             for(var i=0,nfaces=sj.faces.length; i!==nfaces; i++){
 
                 // Construct world face vertices
-                var verts = [];
-                for(var j=0,nverts=sj.faces[i].length; j!==nverts; j++){
-                    var worldVertex = new CANNON.Vec3();
-                    sj.vertices[sj.faces[i][j]].copy(worldVertex);
-                    qj.vmult(worldVertex,worldVertex);
-                    worldVertex.vadd(xj,worldVertex);
-                    verts.push(worldVertex);
-                }
-
-                var normal = particleConvex_normal;
-                sj.faceNormals[i].copy(normal);
-                normal.normalize();
-                qj.vmult(normal,normal);
+                var verts = [ sj.worldVertices[ sj.faces[i][0] ] ];
                 
+                var normal = sj.worldFaceNormals[i];
+
                 // Check how much the particle penetrates the polygon plane.
-                var penetration = -normal.dot(xi.vsub(verts[0]));
+                xi.vsub(verts[0],particleConvex_vertexToParticle);
+                var penetration = -normal.dot(particleConvex_vertexToParticle);
                 if(minPenetration===null || Math.abs(penetration)<Math.abs(minPenetration)){
                     minPenetration = penetration;
                     penetratedFaceIndex = i;
@@ -5494,10 +5967,15 @@ CANNON.ContactGenerator = function(){
             if(penetratedFaceIndex!==-1){
                 // Setup contact
                 var r = makeResult(bi,bj);
+                penetratedFaceNormal.mult(minPenetration, worldPenetrationVec);
+
                 // rj is the particle position projected to the face
-                var worldPenetrationVec = penetratedFaceNormal.mult(minPenetration);
-                var projectedToFace = xi.vsub(xj).vadd(worldPenetrationVec);
-                projectedToFace.copy(r.rj);
+                worldPenetrationVec.vadd(xi,worldPenetrationVec);
+                worldPenetrationVec.vsub(xj,worldPenetrationVec);
+                worldPenetrationVec.copy(r.rj);
+                //var projectedToFace = xi.vsub(xj).vadd(worldPenetrationVec);
+                //projectedToFace.copy(r.rj);
+
                 //qj.vmult(r.rj,r.rj);
                 penetratedFaceNormal.negate( r.ni ); // Contact normal
                 r.ri.set(0,0,0); // Center of particle
@@ -5522,28 +6000,52 @@ CANNON.ContactGenerator = function(){
     function nearPhase(result,si,sj,xi,xj,qi,qj,bi,bj){
         var swapped = false, types = CANNON.Shape.types;
         if(si && sj){
-            if(si.type>sj.type){
+            if(si.type > sj.type){
                 var temp;
-                temp=sj;   sj=si;   si=temp;
-                temp=xj;   xj=xi;   xi=temp;
-                temp=qj;   qj=qi;   qi=temp;
-                temp=bj;   bj=bi;   bi=temp;
+                temp=sj;
+                sj=si;
+                si=temp;
+
+                temp=xj;
+                xj=xi;
+                xi=temp;
+
+                temp=qj;
+                qj=qi;
+                qi=temp;
+
+                temp=bj;
+                bj=bi;
+                bi=temp;
+
                 swapped = true;
             }
         } else {
             // Particle!
             if(si && !sj){
                 var temp;
-                temp=sj;   sj=si;   si=temp;
-                temp=xj;   xj=xi;   xi=temp;
-                temp=qj;   qj=qi;   qi=temp;
-                temp=bj;   bj=bi;   bi=temp;
+                temp=sj;
+                sj=si;
+                si=temp;
+
+                temp=xj;
+                xj=xi;
+                xi=temp;
+
+                temp=qj;
+                qj=qi;
+                qi=temp;
+
+                temp=bj;
+                bj=bi;
+                bi=temp;
+
                 swapped = true;
             }
         }
 
         if(si && sj){
-            if(si.type==types.SPHERE){
+            if(si.type === types.SPHERE){
 
                 switch(sj.type){
                 case types.SPHERE: // sphere-sphere
@@ -5565,13 +6067,12 @@ CANNON.ContactGenerator = function(){
                     console.warn("Collision between CANNON.Shape.types.SPHERE and "+sj.type+" not implemented yet.");
                     break;
                 }
-            
-            } else if(si.type==types.PLANE){
-                
+
+            } else if(si.type === types.PLANE){
+
                 switch(sj.type){
                 case types.PLANE: // plane-plane
                     throw new Error("Plane-plane collision... wait, you did WHAT?");
-                    break;
                 case types.BOX: // plane-box
                     planeBox(result,si,sj,xi,xj,qi,qj,bi,bj);
                     break;
@@ -5586,8 +6087,8 @@ CANNON.ContactGenerator = function(){
                     break;
                 }
 
-            } else if(si.type==types.BOX){
-                
+            } else if(si.type===types.BOX){
+
                 switch(sj.type){
                 case types.BOX: // box-box
                     // Do convex/convex instead
@@ -5604,9 +6105,9 @@ CANNON.ContactGenerator = function(){
                     console.warn("Collision between CANNON.Shape.types.BOX and "+sj.type+" not implemented yet.");
                     break;
                 }
-            
-            } else if(si.type==types.COMPOUND){
-                
+
+            } else if(si.type===types.COMPOUND){
+
                 switch(sj.type){
                 case types.COMPOUND: // compound-compound
                     recurseCompound(result,si,sj,xi,xj,qi,qj,bi,bj);
@@ -5615,7 +6116,7 @@ CANNON.ContactGenerator = function(){
                     // Must swap
                     var r = [];
                     recurseCompound(r,sj,si,xj,xi,qj,qi,bj,bi);
-                    for(var ri=0; ri<r.length; ri++){
+                    for(var ri=0; ri!==r.length; ri++){
                         swapResult(r[ri]);
                         result.push(r[ri]);
                     }
@@ -5625,7 +6126,7 @@ CANNON.ContactGenerator = function(){
                     break;
                 }
 
-            } else if(si.type==types.CONVEXPOLYHEDRON){
+            } else if(si.type===types.CONVEXPOLYHEDRON){
 
                 switch(sj.type){
                 case types.CONVEXPOLYHEDRON: // convex polyhedron - convex polyhedron
@@ -5662,10 +6163,11 @@ CANNON.ContactGenerator = function(){
                 break;
             }
         }
-    
+
         // Swap back if we swapped bodies in the beginning
-        for(var i=0; swapped && i<result.length; i++)
+        for(var i=0, Nresults=result.length; swapped && i!==Nresults; i++){
             swapResult(result[i]);
+        }
     }
 
     /**
@@ -5674,8 +6176,8 @@ CANNON.ContactGenerator = function(){
      * @brief Removes unnecessary members of an array of CANNON.ContactPoint.
      */
     this.reduceContacts = function(contacts){
-    
-    }
+
+    };
 
     /**
      * @method getContacts
@@ -5687,15 +6189,13 @@ CANNON.ContactGenerator = function(){
      * @param array oldcontacts Optional. Array of reusable contact objects
      */
     this.getContacts = function(p1,p2,world,result,oldcontacts){
-    
         // Save old contact objects
-        for(var i=0; oldcontacts && i<oldcontacts.length; i++)
-            contactPointPool.push(oldcontacts[i]);
+        contactPointPool = oldcontacts;
 
-        for(var k=0; k<p1.length; k++){
+        for(var k=0, N=p1.length; k!==N; k++){
             // Get current collision indeces
             var bi = p1[k],
-            bj = p2[k];
+                bj = p2[k];
 
             // Get contacts
             nearPhase(  result,
@@ -5709,8 +6209,8 @@ CANNON.ContactGenerator = function(){
                         bj
                         );
         }
-    }
-};/*global CANNON:true */
+    };
+};
 
 /**
  * @class CANNON.Equation
@@ -5728,13 +6228,13 @@ CANNON.Equation = function(bi,bj,minForce,maxForce){
      * @property float minForce
      * @memberof CANNON.Equation
      */
-    this.minForce = typeof(minForce)=="undefined" ? -1e6 : minForce;
+    this.minForce = typeof(minForce)==="undefined" ? -1e6 : minForce;
 
     /**
      * @property float maxForce
      * @memberof CANNON.Equation
      */
-    this.maxForce = typeof(maxForce)=="undefined" ? 1e6 : maxForce;
+    this.maxForce = typeof(maxForce)==="undefined" ? 1e6 : maxForce;
 
     /**
      * @property CANNON.Body bi
@@ -5804,6 +6304,8 @@ CANNON.Equation.prototype.updateSpookParams = function(h){
     this.b = (4.0 * d) / (1 + 4 * d);
     this.eps = 4.0 / (h * h * k * (1 + 4 * d));
 };
+
+
 /**
  * @class CANNON.ContactEquation
  * @brief Contact/non-penetration constraint equation
@@ -5816,28 +6318,32 @@ CANNON.ContactEquation = function(bi,bj){
     CANNON.Equation.call(this,bi,bj,0,1e6);
 
     this.restitution = 0.0; // "bounciness": u1 = -e*u0
-    this.penetration = 0.0;
     this.ri = new CANNON.Vec3();
     this.penetrationVec = new CANNON.Vec3();
     this.rj = new CANNON.Vec3();
     this.ni = new CANNON.Vec3();
     this.rixn = new CANNON.Vec3();
     this.rjxn = new CANNON.Vec3();
-    this.rixw = new CANNON.Vec3();
-    this.rjxw = new CANNON.Vec3();
 
     this.invIi = new CANNON.Mat3();
     this.invIj = new CANNON.Mat3();
 
-    this.relVel = new CANNON.Vec3();
-    this.relForce = new CANNON.Vec3();
+    // Cache
+    this.biInvInertiaTimesRixn =  new CANNON.Vec3();
+    this.bjInvInertiaTimesRjxn =  new CANNON.Vec3();
 };
 
 CANNON.ContactEquation.prototype = new CANNON.Equation();
 CANNON.ContactEquation.prototype.constructor = CANNON.ContactEquation;
 
-var ContactEquation_computeB_temp1 = new CANNON.Vec3();
+// To be used before object reuse
+CANNON.ContactEquation.prototype.reset = function(){
+    this.invInertiaTimesRxnNeedsUpdate = true;
+};
+
+var ContactEquation_computeB_temp1 = new CANNON.Vec3(); // Temp vectors
 var ContactEquation_computeB_temp2 = new CANNON.Vec3();
+var ContactEquation_computeB_zero = new CANNON.Vec3();
 CANNON.ContactEquation.prototype.computeB = function(h){
     var a = this.a,
         b = this.b;
@@ -5848,18 +6354,18 @@ CANNON.ContactEquation.prototype.computeB = function(h){
     var rixn = this.rixn;
     var rjxn = this.rjxn;
 
+    var zero = ContactEquation_computeB_zero;
+
     var vi = bi.velocity;
-    var wi = bi.angularVelocity ? bi.angularVelocity : new CANNON.Vec3();
+    var wi = bi.angularVelocity ? bi.angularVelocity : zero;
     var fi = bi.force;
-    var taui = bi.tau ? bi.tau : new CANNON.Vec3();
+    var taui = bi.tau ? bi.tau : zero;
 
     var vj = bj.velocity;
-    var wj = bj.angularVelocity ? bj.angularVelocity : new CANNON.Vec3();
+    var wj = bj.angularVelocity ? bj.angularVelocity : zero;
     var fj = bj.force;
-    var tauj = bj.tau ? bj.tau : new CANNON.Vec3();
+    var tauj = bj.tau ? bj.tau : zero;
 
-    var relVel = this.relVel;
-    var relForce = this.relForce;
     var penetrationVec = this.penetrationVec;
     var invMassi = bi.invMass;
     var invMassj = bj.invMass;
@@ -5867,10 +6373,16 @@ CANNON.ContactEquation.prototype.computeB = function(h){
     var invIi = this.invIi;
     var invIj = this.invIj;
 
-    if(bi.invInertia) invIi.setTrace(bi.invInertia);
-    else              invIi.identity(); // ok?
-    if(bj.invInertia) invIj.setTrace(bj.invInertia);
-    else              invIj.identity(); // ok?
+    if(bi.invInertia){
+        invIi.setTrace(bi.invInertia);
+    } else {
+        invIi.identity(); // ok?
+    }
+    if(bj.invInertia){
+        invIj.setTrace(bj.invInertia);
+    } else {
+        invIj.identity(); // ok?
+    }
 
     var n = this.ni;
 
@@ -5919,16 +6431,32 @@ CANNON.ContactEquation.prototype.computeC = function(){
     var invIi = this.invIi;
     var invIj = this.invIj;
 
-    if(bi.invInertia) invIi.setTrace(bi.invInertia);
-    else              invIi.identity(); // ok?
-    if(bj.invInertia) invIj.setTrace(bj.invInertia);
-    else              invIj.identity(); // ok?
+    /*
+    if(bi.invInertia){
+        invIi.setTrace(bi.invInertia);
+    } else {
+        invIi.identity(); // ok?
+    }
+    if(bj.invInertia){
+        invIj.setTrace(bj.invInertia);
+    } else {
+        invIj.identity(); // ok?
+    }
+     */
 
     // Compute rxn * I * rxn for each body
-    invIi.vmult(rixn,computeC_temp1); 
+    invIi.vmult(rixn, this.biInvInertiaTimesRixn);
+    invIj.vmult(rjxn, this.bjInvInertiaTimesRjxn);
+
+    /*
+    invIi.vmult(rixn,computeC_temp1);
     invIj.vmult(rjxn,computeC_temp2);
+    
     C += computeC_temp1.dot(rixn);
     C += computeC_temp2.dot(rjxn);
+     */
+    C += this.biInvInertiaTimesRixn.dot(rixn);
+    C += this.bjInvInertiaTimesRjxn.dot(rjxn);
 
     return C;
 };
@@ -5944,10 +6472,12 @@ CANNON.ContactEquation.prototype.computeGWlambda = function(){
     GWlambda += ulambda.dot(this.ni);
 
     // Angular
-    if(bi.wlambda)
+    if(bi.wlambda){
         GWlambda -= bi.wlambda.dot(this.rixn);
-    if(bj.wlambda)
+    }
+    if(bj.wlambda){
         GWlambda += bj.wlambda.dot(this.rjxn);
+    }
 
     return GWlambda;
 };
@@ -5973,20 +6503,29 @@ CANNON.ContactEquation.prototype.addToWlambda = function(deltalambda){
 
     // Add to angular velocity
     if(bi.wlambda){
+        /*
         var I = this.invIi;
         I.vmult(rixn,temp1);
         temp1.mult(deltalambda,temp1);
         //bi.wlambda.vsub(I.vmult(rixn).mult(deltalambda),bi.wlambda);
+         */
+        this.biInvInertiaTimesRixn.mult(deltalambda,temp1);
+
         bi.wlambda.vsub(temp1,bi.wlambda);
     }
     if(bj.wlambda){
+        /*
         var I = this.invIj;
         I.vmult(rjxn,temp1);
         temp1.mult(deltalambda,temp1);
         //bj.wlambda.vadd(I.vmult(rjxn).mult(deltalambda),bj.wlambda);
+         */
+        this.bjInvInertiaTimesRjxn.mult(deltalambda,temp1);
         bj.wlambda.vadd(temp1,bj.wlambda);
     }
 };
+
+
 /**
  * @class CANNON.FrictionEquation
  * @brief Constrains the slipping in a contact along a tangent
@@ -6012,6 +6551,10 @@ CANNON.FrictionEquation = function(bi,bj,slipForce){
 
     this.relVel = new CANNON.Vec3();
     this.relForce = new CANNON.Vec3();
+
+    // Cache
+    this.biInvInertiaTimesRixt =  new CANNON.Vec3();
+    this.bjInvInertiaTimesRjxt =  new CANNON.Vec3();
 };
 
 CANNON.FrictionEquation.prototype = new CANNON.Equation();
@@ -6019,6 +6562,7 @@ CANNON.FrictionEquation.prototype.constructor = CANNON.FrictionEquation;
 
 var FrictionEquation_computeB_temp1 = new CANNON.Vec3();
 var FrictionEquation_computeB_temp2 = new CANNON.Vec3();
+var FrictionEquation_computeB_zero = new CANNON.Vec3();
 CANNON.FrictionEquation.prototype.computeB = function(h){
     var a = this.a,
         b = this.b;
@@ -6031,15 +6575,17 @@ CANNON.FrictionEquation.prototype.computeB = function(h){
     var wixri = this.wixri;
     var wjxrj = this.wjxrj;
 
+    var zero = FrictionEquation_computeB_zero;
+
     var vi = bi.velocity;
-    var wi = bi.angularVelocity ? bi.angularVelocity : new CANNON.Vec3();
+    var wi = bi.angularVelocity ? bi.angularVelocity : zero;
     var fi = bi.force;
-    var taui = bi.tau ? bi.tau : new CANNON.Vec3();
+    var taui = bi.tau ? bi.tau : zero;
 
     var vj = bj.velocity;
-    var wj = bj.angularVelocity ? bj.angularVelocity : new CANNON.Vec3();
+    var wj = bj.angularVelocity ? bj.angularVelocity : zero;
     var fj = bj.force;
-    var tauj = bj.tau ? bj.tau : new CANNON.Vec3();
+    var tauj = bj.tau ? bj.tau : zero;
 
     var relVel = this.relVel;
     var relForce = this.relForce;
@@ -6049,8 +6595,12 @@ CANNON.FrictionEquation.prototype.computeB = function(h){
     var invIi = this.invIi;
     var invIj = this.invIj;
 
-    if(bi.invInertia) invIi.setTrace(bi.invInertia);
-    if(bj.invInertia) invIj.setTrace(bj.invInertia);
+    if(bi.invInertia){
+        invIi.setTrace(bi.invInertia);
+    }
+    if(bj.invInertia){
+        invIj.setTrace(bj.invInertia);
+    }
 
     var t = this.t;
 
@@ -6091,15 +6641,26 @@ CANNON.FrictionEquation.prototype.computeC = function(){
     var invIi = this.invIi;
     var invIj = this.invIj;
 
-    if(bi.invInertia) invIi.setTrace(bi.invInertia);
-    if(bj.invInertia) invIj.setTrace(bj.invInertia);
+    /*
+    if(bi.invInertia){
+        invIi.setTrace(bi.invInertia);
+    }
+    if(bj.invInertia){
+        invIj.setTrace(bj.invInertia);
+    }
+     */
 
     // Compute rxt * I * rxt for each body
-    invIi.vmult(rixt,FEcomputeC_temp1); 
+    /*
+    invIi.vmult(rixt,FEcomputeC_temp1);
     invIj.vmult(rjxt,FEcomputeC_temp2);
     C += FEcomputeC_temp1.dot(rixt);
     C += FEcomputeC_temp2.dot(rjxt);
-
+      */
+    invIi.vmult(rixt,this.biInvInertiaTimesRixt);
+    invIj.vmult(rjxt,this.bjInvInertiaTimesRjxt);
+    C += this.biInvInertiaTimesRixt.dot(rixt);
+    C += this.bjInvInertiaTimesRjxt.dot(rjxt);
 
     return C;
 };
@@ -6108,7 +6669,7 @@ var FrictionEquation_computeGWlambda_ulambda = new CANNON.Vec3();
 CANNON.FrictionEquation.prototype.computeGWlambda = function(){
 
     // Correct at all ???
-    
+
     var bi = this.bi;
     var bj = this.bj;
 
@@ -6118,10 +6679,12 @@ CANNON.FrictionEquation.prototype.computeGWlambda = function(){
     GWlambda += ulambda.dot(this.t);
 
     // Angular
-    if(bi.wlambda)
+    if(bi.wlambda){
         GWlambda -= bi.wlambda.dot(this.rixt);
-    if(bj.wlambda)
+    }
+    if(bj.wlambda){
         GWlambda += bj.wlambda.dot(this.rjxt);
+    }
 
     return GWlambda;
 };
@@ -6147,19 +6710,27 @@ CANNON.FrictionEquation.prototype.addToWlambda = function(deltalambda){
     // Add to angular velocity
     var wi = bi.wlambda;
     if(wi){
+        /*
         var I = this.invIi;
         I.vmult(rixt,tmp);
         tmp.mult(deltalambda,tmp);
+         */
+        this.biInvInertiaTimesRixt.mult(deltalambda,tmp);
         wi.vsub(tmp,wi);
     }
     var wj = bj.wlambda;
     if(wj){
+        /*
         var I = this.invIj;
         I.vmult(rjxt,tmp);
         tmp.mult(deltalambda,tmp);
+         */
+        this.bjInvInertiaTimesRjxt.mult(deltalambda,tmp);
         wj.vadd(tmp,wj);
     }
-};/**
+};
+
+/**
  * @class CANNON.RotationalEquation
  * @brief Rotational constraint. Works to keep the local vectors orthogonal to each other.
  * @author schteppe
@@ -6215,10 +6786,16 @@ CANNON.RotationalEquation.prototype.computeB = function(h){
     var invIi = this.invIi;
     var invIj = this.invIj;
 
-    if(bi.invInertia) invIi.setTrace(bi.invInertia);
-    else              invIi.identity(); // ok?
-    if(bj.invInertia) invIj.setTrace(bj.invInertia);
-    else              invIj.identity(); // ok?
+    if(bi.invInertia){
+        invIi.setTrace(bi.invInertia);
+    } else {
+        invIi.identity(); // ok?
+    }
+    if(bj.invInertia) {
+        invIj.setTrace(bj.invInertia);
+    } else {
+        invIj.identity(); // ok?
+    }
 
     // Caluclate cross products
     ni.cross(nj,nixnj);
@@ -6230,7 +6807,7 @@ CANNON.RotationalEquation.prototype.computeB = function(h){
     // W = [vi wi vj wj]
     var Gq = -ni.dot(nj);
     var GW = njxni.dot(wi) + nixnj.dot(wj);
-    var GiMf = 0//njxni.dot(invIi.vmult(taui)) + nixnj.dot(invIj.vmult(tauj));
+    var GiMf = 0;//njxni.dot(invIi.vmult(taui)) + nixnj.dot(invIj.vmult(tauj));
 
     var B = - Gq * a - GW * b - h*GiMf;
 
@@ -6251,10 +6828,16 @@ CANNON.RotationalEquation.prototype.computeC = function(){
     var invIi = this.invIi;
     var invIj = this.invIj;
 
-    if(bi.invInertia) invIi.setTrace(bi.invInertia);
-    else              invIi.identity(); // ok?
-    if(bj.invInertia) invIj.setTrace(bj.invInertia);
-    else              invIj.identity(); // ok?
+    if(bi.invInertia){
+        invIi.setTrace(bi.invInertia);
+    } else {
+        invIi.identity(); // ok?
+    }
+    if(bj.invInertia){
+        invIj.setTrace(bj.invInertia);
+    } else {
+        invIj.identity(); // ok?
+    }
 
     C += invIi.vmult(njxni).dot(njxni);
     C += invIj.vmult(nixnj).dot(nixnj);
@@ -6273,8 +6856,12 @@ CANNON.RotationalEquation.prototype.computeGWlambda = function(){
     //GWlambda += ulambda.dot(this.ni);
 
     // Angular
-    if(bi.wlambda) GWlambda += bi.wlambda.dot(this.njxni);
-    if(bj.wlambda) GWlambda += bj.wlambda.dot(this.nixnj);
+    if(bi.wlambda){
+        GWlambda += bi.wlambda.dot(this.njxni);
+    }
+    if(bj.wlambda){
+        GWlambda += bj.wlambda.dot(this.nixnj);
+    }
 
     //console.log("GWlambda:",GWlambda);
 
@@ -6303,7 +6890,7 @@ CANNON.RotationalEquation.prototype.addToWlambda = function(deltalambda){
         bj.wlambda.vadd(I.vmult(nixnj).mult(deltalambda),bj.wlambda);
     }
 };
-/*global CANNON:true */
+
 
 /**
  * @class CANNON.Constraint
@@ -6327,7 +6914,9 @@ CANNON.Constraint = function(bodyA,bodyB){
 // Update constraint
 CANNON.Constraint.prototype.update = function(){
     throw new Error("method update() not implmemented in this Constraint subclass!");
-};/**
+};
+
+/**
  * @class CANNON.DistanceConstraint
  * @brief Constrains two bodies to be at a constant distance from each other.
  * @author schteppe
@@ -6339,8 +6928,9 @@ CANNON.Constraint.prototype.update = function(){
 CANNON.DistanceConstraint = function(bodyA,bodyB,distance,maxForce){
     CANNON.Constraint.call(this,bodyA,bodyB);
 
-    if(typeof(maxForce)=="undefined" )
+    if(typeof(maxForce)==="undefined" ) {
         maxForce = 1e6;
+    }
 
     // Equations to be fed to the solver
     var eqs = this.equations = [
@@ -6363,6 +6953,8 @@ CANNON.DistanceConstraint = function(bodyA,bodyB,distance,maxForce){
     };
 };
 CANNON.DistanceConstraint.prototype = new CANNON.Constraint();
+
+
 /**
  * @class CANNON.RotationalMotorEquation
  * @brief Rotational motor constraint. Works to keep the relative angular velocity of the bodies to a given value
@@ -6410,10 +7002,16 @@ CANNON.RotationalMotorEquation.prototype.computeB = function(h){
     var invIi = this.invIi;
     var invIj = this.invIj;
 
-    if(bi.invInertia) invIi.setTrace(bi.invInertia);
-    else              invIi.identity(); // ok?
-    if(bj.invInertia) invIj.setTrace(bj.invInertia);
-    else              invIj.identity(); // ok?
+    if(bi.invInertia){
+        invIi.setTrace(bi.invInertia);
+    } else {
+        invIi.identity(); // ok?
+    }
+    if(bj.invInertia){
+        invIj.setTrace(bj.invInertia);
+    } else {
+        invIj.identity(); // ok?
+    }
 
     // g = 0
     // gdot = axisA * wi - axisB * wj
@@ -6442,10 +7040,16 @@ CANNON.RotationalMotorEquation.prototype.computeC = function(){
     var invIi = this.invIi;
     var invIj = this.invIj;
 
-    if(bi.invInertia) invIi.setTrace(bi.invInertia);
-    else              invIi.identity(); // ok?
-    if(bj.invInertia) invIj.setTrace(bj.invInertia);
-    else              invIj.identity(); // ok?
+    if(bi.invInertia){
+        invIi.setTrace(bi.invInertia);
+    } else {
+        invIi.identity(); // ok?
+    }
+    if(bj.invInertia){
+        invIj.setTrace(bj.invInertia);
+    } else {
+        invIj.identity(); // ok?
+    }
 
     C += invIi.vmult(axisA).dot(axisB);
     C += invIj.vmult(axisB).dot(axisB);
@@ -6466,8 +7070,12 @@ CANNON.RotationalMotorEquation.prototype.computeGWlambda = function(){
     //GWlambda += ulambda.dot(this.ni);
 
     // Angular
-    if(bi.wlambda) GWlambda += bi.wlambda.dot(axisA);
-    if(bj.wlambda) GWlambda += bj.wlambda.dot(axisB);
+    if(bi.wlambda){
+        GWlambda += bi.wlambda.dot(axisA);
+    }
+    if(bj.wlambda){
+        GWlambda += bj.wlambda.dot(axisB);
+    }
 
     //console.log("GWlambda:",GWlambda);
 
@@ -6496,7 +7104,7 @@ CANNON.RotationalMotorEquation.prototype.addToWlambda = function(deltalambda){
         bj.wlambda.vadd(I.vmult(axisB).mult(deltalambda),bj.wlambda);
     }
 };
-/*global CANNON:true */
+
 
 /**
  * @class CANNON.HingeConstraint
@@ -6604,7 +7212,7 @@ CANNON.HingeConstraint = function(bodyA, pivotA, axisA, bodyB, pivotB, axisB, ma
         }
     };
 };
-CANNON.HingeConstraint.prototype = new CANNON.Constraint();/*global CANNON:true */
+CANNON.HingeConstraint.prototype = new CANNON.Constraint();
 
 /**
  * @class CANNON.PointToPointConstraint
@@ -6649,6 +7257,8 @@ CANNON.PointToPointConstraint = function(bodyA,pivotA,bodyB,pivotB,maxForce){
     };
 };
 CANNON.PointToPointConstraint.prototype = new CANNON.Constraint();
+
+
 if (typeof module !== 'undefined') {
     // export for node
     module.exports = CANNON;
@@ -6659,7 +7269,7 @@ if (typeof module !== 'undefined') {
 
 }).apply(this);
 })(require("__browserify_process"),window,"/../../node_modules/cannon/build/cannon.js","/../../node_modules/cannon/build")
-},{"__browserify_process":1}],8:[function(require,module,exports){(function(process,global,__filename,__dirname){function filter (xs, fn) {
+},{"__browserify_process":1}],9:[function(require,module,exports){(function(process,global,__filename,__dirname){function filter (xs, fn) {
     var res = [];
     for (var i = 0; i < xs.length; i++) {
         if (fn(xs[i], i, xs)) res.push(xs[i]);
@@ -6836,7 +7446,7 @@ exports.relative = function(from, to) {
 };
 
 })(require("__browserify_process"),window,"/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin/path.js","/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin")
-},{"__browserify_process":1}],9:[function(require,module,exports){(function(process,global,__filename,__dirname){if (!process.EventEmitter) process.EventEmitter = function () {};
+},{"__browserify_process":1}],10:[function(require,module,exports){(function(process,global,__filename,__dirname){if (!process.EventEmitter) process.EventEmitter = function () {};
 
 var EventEmitter = exports.EventEmitter = process.EventEmitter;
 var isArray = typeof Array.isArray === 'function'
@@ -7021,7 +7631,7 @@ EventEmitter.prototype.listeners = function(type) {
 };
 
 })(require("__browserify_process"),window,"/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin/events.js","/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin")
-},{"__browserify_process":1}],10:[function(require,module,exports){(function(process,global,__filename,__dirname){/**
+},{"__browserify_process":1}],11:[function(require,module,exports){(function(process,global,__filename,__dirname){/**
  * @author mrdoob / http://mrdoob.com/
  */
 
@@ -7167,7 +7777,7 @@ var Stats = function () {
 
 module.exports = Stats
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/lib/stats.js","/../../node_modules/voxel-engine/lib")
-},{"__browserify_process":1}],11:[function(require,module,exports){(function(process,global,__filename,__dirname){/**
+},{"__browserify_process":1}],12:[function(require,module,exports){(function(process,global,__filename,__dirname){/**
  * @author alteredq / http://alteredqualia.com/
  * @author mr.doob / http://mrdoob.com/
  */
@@ -7228,7 +7838,76 @@ module.exports = function() {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/lib/detector.js","/../../node_modules/voxel-engine/lib")
-},{"__browserify_process":1}],5:[function(require,module,exports){(function(process,global,__filename,__dirname){var voxel = require('voxel')
+},{"__browserify_process":1}],8:[function(require,module,exports){(function(process,global,__filename,__dirname){exports = module.exports = Memoizer;
+var EE = require('events').EventEmitter;
+var Treelib = require('treelib');
+var textual = require('textual');
+function Memoizer(fn) {
+	var args = {};
+	var tree = Treelib();
+	var emitter = new EE;	
+	emitter.on('done', function(pathargs,value){ 
+        lastKnownValue = value;
+		tree.path(pathargs).setValue(value);
+	});
+    var lastKnownValue = undefined;
+	var getLastArg = textual.getLastArg;
+	var doesObjectCallMethod = textual.doesObjectCallMethod;
+    var then = undefined; 
+    var countCache = 0;
+	var memo = function() {};
+	var foo = function() {
+		var args = [].slice.call(arguments,0);
+		if (tree.getValue(args) === undefined) {
+			args = args.map(function(val) {
+				if (typeof val == 'function') {
+					return val.toString();
+                } else {
+                    return val
+                }
+            }); 
+			if (doesObjectCallMethod(fn, getLastArg(fn), 'done')) {
+				var x = memo.bind(fn);
+				x.done = function() { 
+					var args = [].slice.call(arguments[0],0);
+					var pathargs = args.slice(0,args.length-1);;
+					var value = arguments[arguments.length-1];
+					emitter.emit('done',pathargs,value);
+				};
+				fn.apply(fn,args.concat(x));
+			} else {
+                lastKnownValue = fn.apply(fn,arguments);
+                if (then !== undefined) {
+                    lastKnownValue = then(lastKnownValue);
+                }
+				tree.path(args).setValue(lastKnownValue);
+			}
+		} else {
+            countCache++;
+            //console.log("Cached Value used! :" + countCache);
+			// cached value is being used! hooray!
+		}
+		return tree.getValue(args);
+	};
+	foo.lastArg = function(fn) {
+		return getLastArg(fn);
+	};
+	foo.doesObjectCallMethod = function(fn,objstr,methodstr) {
+		return doesObjectCallMethod(fn,objstr,methodstr)
+	};
+    foo.update = function(args, val) {
+        tree.path(args).setValue(val);
+        return foo;
+    };
+    foo.then = function(cb) {
+        then = cb;
+        return foo;
+    }
+	return foo;
+};
+
+})(require("__browserify_process"),window,"/../../node_modules/memoizer/index.js","/../../node_modules/memoizer")
+},{"events":10,"treelib":13,"textual":14,"__browserify_process":1}],6:[function(require,module,exports){(function(process,global,__filename,__dirname){var voxel = require('voxel')
 var voxelMesh = require('voxel-mesh')
 var voxelChunks = require('voxel-chunks')
 var ray = require('voxel-raycast')
@@ -7849,76 +8528,38 @@ Game.prototype.destroy = function() {
   clearInterval(this.timer)
 }
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/index.js","/../../node_modules/voxel-engine")
-},{"path":8,"events":9,"./lib/stats":10,"./lib/detector":11,"voxel":12,"voxel-mesh":13,"voxel-chunks":14,"voxel-raycast":15,"voxel-control":16,"voxel-view":17,"three":18,"inherits":19,"interact":20,"raf":21,"collide-3d-tilemap":22,"aabb-3d":23,"gl-matrix":24,"spatial-events":25,"kb-controls":26,"voxel-physical":27,"pin-it":28,"voxel-texture":29,"voxel-region-change":30,"__browserify_process":1}],7:[function(require,module,exports){(function(process,global,__filename,__dirname){exports = module.exports = Memoizer;
-var EE = require('events').EventEmitter;
-var Treelib = require('treelib');
-var textual = require('textual');
-function Memoizer(fn) {
-	var args = {};
-	var tree = Treelib();
-	var emitter = new EE;	
-	emitter.on('done', function(pathargs,value){ 
-        lastKnownValue = value;
-		tree.path(pathargs).setValue(value);
-	});
-    var lastKnownValue = undefined;
-	var getLastArg = textual.getLastArg;
-	var doesObjectCallMethod = textual.doesObjectCallMethod;
-    var then = undefined; 
-    var countCache = 0;
-	var memo = function() {};
-	var foo = function() {
-		var args = [].slice.call(arguments,0);
-		if (tree.getValue(args) === undefined) {
-			args = args.map(function(val) {
-				if (typeof val == 'function') {
-					return val.toString();
-                } else {
-                    return val
-                }
-            }); 
-			if (doesObjectCallMethod(fn, getLastArg(fn), 'done')) {
-				var x = memo.bind(fn);
-				x.done = function() { 
-					var args = [].slice.call(arguments[0],0);
-					var pathargs = args.slice(0,args.length-1);;
-					var value = arguments[arguments.length-1];
-					emitter.emit('done',pathargs,value);
-				};
-				fn.apply(fn,args.concat(x));
-			} else {
-                lastKnownValue = fn.apply(fn,arguments);
-                if (then !== undefined) {
-                    lastKnownValue = then(lastKnownValue);
-                }
-				tree.path(args).setValue(lastKnownValue);
-			}
-		} else {
-            countCache++;
-            //console.log("Cached Value used! :" + countCache);
-			// cached value is being used! hooray!
-		}
-		return tree.getValue(args);
-	};
-	foo.lastArg = function(fn) {
-		return getLastArg(fn);
-	};
-	foo.doesObjectCallMethod = function(fn,objstr,methodstr) {
-		return doesObjectCallMethod(fn,objstr,methodstr)
-	};
-    foo.update = function(args, val) {
-        tree.path(args).setValue(val);
-        return foo;
-    };
-    foo.then = function(cb) {
-        then = cb;
-        return foo;
-    }
-	return foo;
-};
+},{"path":9,"events":10,"./lib/stats":11,"./lib/detector":12,"voxel":15,"voxel-mesh":16,"voxel-raycast":17,"voxel-view":18,"inherits":19,"three":20,"interact":21,"voxel-control":22,"voxel-chunks":23,"collide-3d-tilemap":24,"raf":25,"aabb-3d":26,"gl-matrix":27,"kb-controls":28,"pin-it":29,"voxel-physical":30,"spatial-events":31,"voxel-texture":32,"voxel-region-change":33,"__browserify_process":1}],19:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = inherits
 
-})(require("__browserify_process"),window,"/../../node_modules/memoizer/index.js","/../../node_modules/memoizer")
-},{"events":9,"treelib":31,"textual":32,"__browserify_process":1}],15:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict"
+function inherits (c, p, proto) {
+  proto = proto || {}
+  var e = {}
+  ;[c.prototype, proto].forEach(function (s) {
+    Object.getOwnPropertyNames(s).forEach(function (k) {
+      e[k] = Object.getOwnPropertyDescriptor(s, k)
+    })
+  })
+  c.prototype = Object.create(p.prototype, e)
+  c.super = p
+}
+
+//function Child () {
+//  Child.super.call(this)
+//  console.error([this
+//                ,this.constructor
+//                ,this.constructor === Child
+//                ,this.constructor.super === Parent
+//                ,Object.getPrototypeOf(this) === Child.prototype
+//                ,Object.getPrototypeOf(Object.getPrototypeOf(this))
+//                 === Parent.prototype
+//                ,this instanceof Child
+//                ,this instanceof Parent])
+//}
+//function Parent () {}
+//inherits(Child, Parent)
+//new Child
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/inherits/inherits.js","/../../node_modules/voxel-engine/node_modules/inherits")
+},{"__browserify_process":1}],17:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict"
 
 var EPSILON = 1e-8
 
@@ -8128,7 +8769,94 @@ function traceRay(voxels, origin, direction, max_d, hit_pos, hit_norm) {
 
 module.exports = traceRay
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-raycast/raycast.js","/../../node_modules/voxel-engine/node_modules/voxel-raycast")
-},{"__browserify_process":1}],16:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = control
+},{"__browserify_process":1}],18:[function(require,module,exports){(function(process,global,__filename,__dirname){var THREE, temporaryPosition, temporaryVector
+
+module.exports = function(three, opts) {
+  temporaryPosition = new three.Vector3
+  temporaryVector = new three.Vector3
+  
+  return new View(three, opts)
+}
+
+function View(three, opts) {
+  THREE = three // three.js doesn't support multiple instances on a single page
+  this.fov = opts.fov || 60
+  this.width = opts.width || 512
+  this.height = opts.height || 512
+  this.aspectRatio = opts.aspectRatio || this.width/this.height
+  this.nearPlane = opts.nearPlane || 1
+  this.farPlane = opts.farPlane || 10000
+  this.skyColor = opts.skyColor || 0xBFD1E5
+  this.ortho = opts.ortho
+  this.camera = this.ortho?(new THREE.OrthographicCamera(this.width/-2, this.width/2, this.height/2, this.height/-2, this.nearPlane, this.farPlane)):(new THREE.PerspectiveCamera(this.fov, this.aspectRatio, this.nearPlane, this.farPlane))
+  this.camera.lookAt(new THREE.Vector3(0, 0, 0))
+
+  if (!process.browser) return
+
+  this.createRenderer()
+  this.element = this.renderer.domElement
+}
+
+View.prototype.createRenderer = function() {
+  this.renderer = new THREE.WebGLRenderer({
+    antialias: true
+  })
+  this.renderer.setSize(this.width, this.height)
+  this.renderer.setClearColorHex(this.skyColor, 1.0)
+  this.renderer.clear()
+}
+
+View.prototype.bindToScene = function(scene) {
+  scene.add(this.camera)
+}
+
+View.prototype.getCamera = function() {
+  return this.camera
+}
+
+View.prototype.cameraPosition = function() {
+  temporaryPosition.multiplyScalar(0)
+  this.camera.matrixWorld.multiplyVector3(temporaryPosition)
+  return temporaryPosition
+}
+
+View.prototype.cameraVector = function() {
+  temporaryVector.multiplyScalar(0)
+  temporaryVector.z = -1
+  this.camera.matrixWorld.multiplyVector3(temporaryVector)
+  temporaryVector.subSelf(this.cameraPosition()).normalize()
+  return temporaryVector
+}
+
+View.prototype.resizeWindow = function(width, height) {
+  if( this.element.parentElement ) {
+    width = this.element.parentElement.clientWidth
+    height = this.element.parentElement.clientHeight
+  }
+
+  this.camera.aspect = this.aspectRatio = width/height
+
+  this.camera.updateProjectionMatrix()
+
+  this.renderer.setSize( width, height )
+}
+
+View.prototype.render = function(scene) {
+  this.renderer.render(scene, this.camera)
+}
+
+View.prototype.appendTo = function(element) {
+  if (typeof element === 'object') {
+    element.appendChild(this.element)
+  }
+  else {
+    document.querySelector(element).appendChild(this.element)
+  }
+
+  this.resizeWindow(this.width,this.height)
+}
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-view/index.js","/../../node_modules/voxel-engine/node_modules/voxel-view")
+},{"__browserify_process":1}],22:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = control
 
 var Stream = require('stream').Stream
 
@@ -8411,172 +9139,7 @@ function clamp(value, to) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-control/index.js","/../../node_modules/voxel-engine/node_modules/voxel-control")
-},{"stream":33,"__browserify_process":1}],17:[function(require,module,exports){(function(process,global,__filename,__dirname){var THREE, temporaryPosition, temporaryVector
-
-module.exports = function(three, opts) {
-  temporaryPosition = new three.Vector3
-  temporaryVector = new three.Vector3
-  
-  return new View(three, opts)
-}
-
-function View(three, opts) {
-  THREE = three // three.js doesn't support multiple instances on a single page
-  this.fov = opts.fov || 60
-  this.width = opts.width || 512
-  this.height = opts.height || 512
-  this.aspectRatio = opts.aspectRatio || this.width/this.height
-  this.nearPlane = opts.nearPlane || 1
-  this.farPlane = opts.farPlane || 10000
-  this.skyColor = opts.skyColor || 0xBFD1E5
-  this.ortho = opts.ortho
-  this.camera = this.ortho?(new THREE.OrthographicCamera(this.width/-2, this.width/2, this.height/2, this.height/-2, this.nearPlane, this.farPlane)):(new THREE.PerspectiveCamera(this.fov, this.aspectRatio, this.nearPlane, this.farPlane))
-  this.camera.lookAt(new THREE.Vector3(0, 0, 0))
-
-  if (!process.browser) return
-
-  this.createRenderer()
-  this.element = this.renderer.domElement
-}
-
-View.prototype.createRenderer = function() {
-  this.renderer = new THREE.WebGLRenderer({
-    antialias: true
-  })
-  this.renderer.setSize(this.width, this.height)
-  this.renderer.setClearColorHex(this.skyColor, 1.0)
-  this.renderer.clear()
-}
-
-View.prototype.bindToScene = function(scene) {
-  scene.add(this.camera)
-}
-
-View.prototype.getCamera = function() {
-  return this.camera
-}
-
-View.prototype.cameraPosition = function() {
-  temporaryPosition.multiplyScalar(0)
-  this.camera.matrixWorld.multiplyVector3(temporaryPosition)
-  return temporaryPosition
-}
-
-View.prototype.cameraVector = function() {
-  temporaryVector.multiplyScalar(0)
-  temporaryVector.z = -1
-  this.camera.matrixWorld.multiplyVector3(temporaryVector)
-  temporaryVector.subSelf(this.cameraPosition()).normalize()
-  return temporaryVector
-}
-
-View.prototype.resizeWindow = function(width, height) {
-  if( this.element.parentElement ) {
-    width = this.element.parentElement.clientWidth
-    height = this.element.parentElement.clientHeight
-  }
-
-  this.camera.aspect = this.aspectRatio = width/height
-
-  this.camera.updateProjectionMatrix()
-
-  this.renderer.setSize( width, height )
-}
-
-View.prototype.render = function(scene) {
-  this.renderer.render(scene, this.camera)
-}
-
-View.prototype.appendTo = function(element) {
-  if (typeof element === 'object') {
-    element.appendChild(this.element)
-  }
-  else {
-    document.querySelector(element).appendChild(this.element)
-  }
-
-  this.resizeWindow(this.width,this.height)
-}
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-view/index.js","/../../node_modules/voxel-engine/node_modules/voxel-view")
-},{"__browserify_process":1}],19:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = inherits
-
-function inherits (c, p, proto) {
-  proto = proto || {}
-  var e = {}
-  ;[c.prototype, proto].forEach(function (s) {
-    Object.getOwnPropertyNames(s).forEach(function (k) {
-      e[k] = Object.getOwnPropertyDescriptor(s, k)
-    })
-  })
-  c.prototype = Object.create(p.prototype, e)
-  c.super = p
-}
-
-//function Child () {
-//  Child.super.call(this)
-//  console.error([this
-//                ,this.constructor
-//                ,this.constructor === Child
-//                ,this.constructor.super === Parent
-//                ,Object.getPrototypeOf(this) === Child.prototype
-//                ,Object.getPrototypeOf(Object.getPrototypeOf(this))
-//                 === Parent.prototype
-//                ,this instanceof Child
-//                ,this instanceof Parent])
-//}
-//function Parent () {}
-//inherits(Child, Parent)
-//new Child
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/inherits/inherits.js","/../../node_modules/voxel-engine/node_modules/inherits")
-},{"__browserify_process":1}],21:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = raf
-
-var EE = require('events').EventEmitter
-  , global = typeof window === 'undefined' ? this : window
-
-var _raf =
-  global.requestAnimationFrame ||
-  global.webkitRequestAnimationFrame ||
-  global.mozRequestAnimationFrame ||
-  global.msRequestAnimationFrame ||
-  global.oRequestAnimationFrame ||
-  (global.setImmediate ? function(fn, el) {
-    setImmediate(fn)
-  } :
-  function(fn, el) {
-    setTimeout(fn, 0)
-  })
-
-function raf(el) {
-  var now = raf.now()
-    , ee = new EE
-
-  ee.pause = function() { ee.paused = true }
-  ee.resume = function() { ee.paused = false }
-
-  _raf(iter, el)
-
-  return ee
-
-  function iter(timestamp) {
-    var _now = raf.now()
-      , dt = _now - now
-    
-    now = _now
-
-    ee.emit('data', dt)
-
-    if(!ee.paused) {
-      _raf(iter, el)
-    }
-  }
-}
-
-raf.polyfill = _raf
-raf.now = function() { return Date.now() }
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/raf/index.js","/../../node_modules/voxel-engine/node_modules/raf")
-},{"events":9,"__browserify_process":1}],22:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = function(field, tilesize, dimensions, offset) {
+},{"stream":34,"__browserify_process":1}],24:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = function(field, tilesize, dimensions, offset) {
   dimensions = dimensions || [ 
     Math.sqrt(field.length) >> 0
   , Math.sqrt(field.length) >> 0
@@ -8665,7 +9228,54 @@ raf.now = function() { return Date.now() }
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/collide-3d-tilemap/index.js","/../../node_modules/voxel-engine/node_modules/collide-3d-tilemap")
-},{"__browserify_process":1}],18:[function(require,module,exports){(function(process,global,__filename,__dirname){
+},{"__browserify_process":1}],25:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = raf
+
+var EE = require('events').EventEmitter
+  , global = typeof window === 'undefined' ? this : window
+
+var _raf =
+  global.requestAnimationFrame ||
+  global.webkitRequestAnimationFrame ||
+  global.mozRequestAnimationFrame ||
+  global.msRequestAnimationFrame ||
+  global.oRequestAnimationFrame ||
+  (global.setImmediate ? function(fn, el) {
+    setImmediate(fn)
+  } :
+  function(fn, el) {
+    setTimeout(fn, 0)
+  })
+
+function raf(el) {
+  var now = raf.now()
+    , ee = new EE
+
+  ee.pause = function() { ee.paused = true }
+  ee.resume = function() { ee.paused = false }
+
+  _raf(iter, el)
+
+  return ee
+
+  function iter(timestamp) {
+    var _now = raf.now()
+      , dt = _now - now
+    
+    now = _now
+
+    ee.emit('data', dt)
+
+    if(!ee.paused) {
+      _raf(iter, el)
+    }
+  }
+}
+
+raf.polyfill = _raf
+raf.now = function() { return Date.now() }
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/raf/index.js","/../../node_modules/voxel-engine/node_modules/raf")
+},{"events":10,"__browserify_process":1}],20:[function(require,module,exports){(function(process,global,__filename,__dirname){
 var window = window || {};
 var self = self || {};
 /**
@@ -45155,89 +45765,7 @@ if (typeof exports !== 'undefined') {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/three/three.js","/../../node_modules/voxel-engine/node_modules/three")
-},{"__browserify_process":1}],28:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = pin
-
-var pins = {}
-  , stack_holder = {}
-  , pin_holder
-
-function make_pin_for(name, obj) {
-  var container = document.createElement('div')
-    , header = document.createElement('h4')
-    , body = document.createElement('pre')
-
-  container.style.background = 'white'
-  container.style.marginBottom = '4px'
-  container.appendChild(header)
-  container.appendChild(body)
-  header.textContents = header.innerText = obj && obj.repr ? obj.repr() : name
-  body.style.padding = '8px'
-
-
-  if(!pin_holder) {
-    pin_holder = document.createElement('div')
-    pin_holder.style.position = 'absolute'
-    pin_holder.style.top =
-    pin_holder.style.right = '4px'
-
-    document.body.appendChild(pin_holder)
-  }
-
-  pin_holder.appendChild(container)
-
-  return (pins[name] = pins[name] || []).push({body: body, last: -Infinity, for_object: obj}), pins[name]
-}
-
-function update_pin(item, into, retain, depth) {
-  if(!retain) into.innerHTML = ''
-  if(depth > 1) return
-  depth = depth || 0
-
-  switch(typeof item) {
-    case 'number': into.innerText += item.toFixed(3); break
-    case 'string': into.innerText += '"'+item+'"'; break
-    case 'undefined':
-    case 'object':
-      if(item) {
-        for(var key in item) if(item.hasOwnProperty(key)) {
-          into.innerText += key +':'
-          update_pin(item[key], into, true, depth+1)
-          into.innerText += '\n'
-        } 
-        break
-      }
-    case 'boolean': into.innerText += ''+item; break
-  }  
-}
-
-function pin(item, every, obj, name) {
-  if(!name) Error.captureStackTrace(stack_holder)
-  var location = name || stack_holder.stack.split('\n').slice(2)[0].replace(/^\s+at /g, '')
-    , target = pins[location] || make_pin_for(location, obj)
-    , now = Date.now()
-    , every = every || 0
-
-  if(arguments.length < 3) target = target[0]
-  else {
-    for(var i = 0, len = target.length; i < len; ++i) {
-    if(target[i].for_object === obj) {
-      target = target[i]
-      break   
-    }
-  }
-    if(i === len) {
-      pins[location].push(target = make_pin_for(location, obj))
-    }
-  }
-
-  if(now - target.last > every) {
-    update_pin(item, target.body)
-    target.last = now 
-  }
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/pin-it/index.js","/../../node_modules/voxel-engine/node_modules/pin-it")
-},{"__browserify_process":1}],24:[function(require,module,exports){(function(process,global,__filename,__dirname){/**
+},{"__browserify_process":1}],27:[function(require,module,exports){(function(process,global,__filename,__dirname){/**
  * @fileoverview gl-matrix - High performance matrix and vector operations
  * @author Brandon Jones
  * @author Colin MacKenzie IV
@@ -48310,7 +48838,89 @@ if(typeof(exports) !== 'undefined') {
 })();
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/gl-matrix/dist/gl-matrix.js","/../../node_modules/voxel-engine/node_modules/gl-matrix/dist")
-},{"__browserify_process":1}],31:[function(require,module,exports){(function(process,global,__filename,__dirname){// incidentally, does shrubs too :-)
+},{"__browserify_process":1}],29:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = pin
+
+var pins = {}
+  , stack_holder = {}
+  , pin_holder
+
+function make_pin_for(name, obj) {
+  var container = document.createElement('div')
+    , header = document.createElement('h4')
+    , body = document.createElement('pre')
+
+  container.style.background = 'white'
+  container.style.marginBottom = '4px'
+  container.appendChild(header)
+  container.appendChild(body)
+  header.textContents = header.innerText = obj && obj.repr ? obj.repr() : name
+  body.style.padding = '8px'
+
+
+  if(!pin_holder) {
+    pin_holder = document.createElement('div')
+    pin_holder.style.position = 'absolute'
+    pin_holder.style.top =
+    pin_holder.style.right = '4px'
+
+    document.body.appendChild(pin_holder)
+  }
+
+  pin_holder.appendChild(container)
+
+  return (pins[name] = pins[name] || []).push({body: body, last: -Infinity, for_object: obj}), pins[name]
+}
+
+function update_pin(item, into, retain, depth) {
+  if(!retain) into.innerHTML = ''
+  if(depth > 1) return
+  depth = depth || 0
+
+  switch(typeof item) {
+    case 'number': into.innerText += item.toFixed(3); break
+    case 'string': into.innerText += '"'+item+'"'; break
+    case 'undefined':
+    case 'object':
+      if(item) {
+        for(var key in item) if(item.hasOwnProperty(key)) {
+          into.innerText += key +':'
+          update_pin(item[key], into, true, depth+1)
+          into.innerText += '\n'
+        } 
+        break
+      }
+    case 'boolean': into.innerText += ''+item; break
+  }  
+}
+
+function pin(item, every, obj, name) {
+  if(!name) Error.captureStackTrace(stack_holder)
+  var location = name || stack_holder.stack.split('\n').slice(2)[0].replace(/^\s+at /g, '')
+    , target = pins[location] || make_pin_for(location, obj)
+    , now = Date.now()
+    , every = every || 0
+
+  if(arguments.length < 3) target = target[0]
+  else {
+    for(var i = 0, len = target.length; i < len; ++i) {
+    if(target[i].for_object === obj) {
+      target = target[i]
+      break   
+    }
+  }
+    if(i === len) {
+      pins[location].push(target = make_pin_for(location, obj))
+    }
+  }
+
+  if(now - target.last > every) {
+    update_pin(item, target.body)
+    target.last = now 
+  }
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/pin-it/index.js","/../../node_modules/voxel-engine/node_modules/pin-it")
+},{"__browserify_process":1}],13:[function(require,module,exports){(function(process,global,__filename,__dirname){// incidentally, does shrubs too :-)
 var Treelib = function(tree) {
 	var self = {};
 	if (tree === undefined) 
@@ -48499,7 +49109,7 @@ var Treelib = function(tree) {
 exports = module.exports = Treelib;
 
 })(require("__browserify_process"),window,"/../../node_modules/memoizer/node_modules/treelib/index.js","/../../node_modules/memoizer/node_modules/treelib")
-},{"__browserify_process":1}],32:[function(require,module,exports){(function(process,global,__filename,__dirname){var getArgs = function(fn) {
+},{"__browserify_process":1}],14:[function(require,module,exports){(function(process,global,__filename,__dirname){var getArgs = function(fn) {
 	var fnstr = fn.toString();
 	var args = fnstr.match(/function\s*\((.*?)\)\s*{/);
 	if (args === null) {
@@ -48541,7 +49151,7 @@ exports.doesObjectCallMethod = function(fn,objstr,methodstr) {
 };
 
 })(require("__browserify_process"),window,"/../../node_modules/memoizer/node_modules/textual/index.js","/../../node_modules/memoizer/node_modules/textual")
-},{"__browserify_process":1}],12:[function(require,module,exports){(function(process,global,__filename,__dirname){var chunker = require('./chunker')
+},{"__browserify_process":1}],15:[function(require,module,exports){(function(process,global,__filename,__dirname){var chunker = require('./chunker')
 
 module.exports = function(opts) {
   if (!opts.generateVoxelChunk) opts.generateVoxelChunk = function(low, high) {
@@ -48637,7 +49247,7 @@ module.exports.generateExamples = function() {
 
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/index.js","/../../node_modules/voxel-engine/node_modules/voxel")
-},{"./chunker":34,"./meshers/culled":35,"./meshers/greedy":36,"./meshers/monotone":37,"./meshers/stupid":38,"__browserify_process":1}],33:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events');
+},{"./chunker":35,"./meshers/culled":36,"./meshers/greedy":37,"./meshers/monotone":38,"./meshers/stupid":39,"__browserify_process":1}],34:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events');
 var util = require('util');
 
 function Stream() {
@@ -48758,7 +49368,7 @@ Stream.prototype.pipe = function(dest, options) {
 };
 
 })(require("__browserify_process"),window,"/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin/stream.js","/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin")
-},{"events":9,"util":39,"__browserify_process":1}],35:[function(require,module,exports){(function(process,global,__filename,__dirname){//Naive meshing (with face culling)
+},{"events":10,"util":40,"__browserify_process":1}],36:[function(require,module,exports){(function(process,global,__filename,__dirname){//Naive meshing (with face culling)
 function CulledMesh(volume, dims) {
   //Precalculate direction vectors for convenience
   var dir = new Array(3);
@@ -48810,7 +49420,43 @@ if(exports) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/meshers/culled.js","/../../node_modules/voxel-engine/node_modules/voxel/meshers")
-},{"__browserify_process":1}],36:[function(require,module,exports){(function(process,global,__filename,__dirname){var GreedyMesh = (function() {
+},{"__browserify_process":1}],39:[function(require,module,exports){(function(process,global,__filename,__dirname){//The stupidest possible way to generate a Minecraft mesh (I think)
+function StupidMesh(volume, dims) {
+  var vertices = [], faces = [], x = [0,0,0], n = 0;
+  for(x[2]=0; x[2]<dims[2]; ++x[2])
+  for(x[1]=0; x[1]<dims[1]; ++x[1])
+  for(x[0]=0; x[0]<dims[0]; ++x[0], ++n)
+  if(!!volume[n]) {
+    for(var d=0; d<3; ++d) {
+      var t = [x[0], x[1], x[2]]
+        , u = [0,0,0]
+        , v = [0,0,0];
+      u[(d+1)%3] = 1;
+      v[(d+2)%3] = 1;
+      for(var s=0; s<2; ++s) {
+        t[d] = x[d] + s;
+        var tmp = u;
+        u = v;
+        v = tmp;
+        var vertex_count = vertices.length;
+        vertices.push([t[0],           t[1],           t[2]          ]);
+        vertices.push([t[0]+u[0],      t[1]+u[1],      t[2]+u[2]     ]);
+        vertices.push([t[0]+u[0]+v[0], t[1]+u[1]+v[1], t[2]+u[2]+v[2]]);
+        vertices.push([t[0]     +v[0], t[1]     +v[1], t[2]     +v[2]]);
+        faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, volume[n]]);
+      }
+    }
+  }
+  return { vertices:vertices, faces:faces };
+}
+
+
+if(exports) {
+  exports.mesher = StupidMesh;
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/meshers/stupid.js","/../../node_modules/voxel-engine/node_modules/voxel/meshers")
+},{"__browserify_process":1}],37:[function(require,module,exports){(function(process,global,__filename,__dirname){var GreedyMesh = (function() {
 //Cache buffer internally
 var mask = new Int32Array(4096);
 
@@ -48927,7 +49573,7 @@ if(exports) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/meshers/greedy.js","/../../node_modules/voxel-engine/node_modules/voxel/meshers")
-},{"__browserify_process":1}],37:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict";
+},{"__browserify_process":1}],38:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict";
 
 var MonotoneMesh = (function(){
 
@@ -49180,43 +49826,7 @@ if(exports) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/meshers/monotone.js","/../../node_modules/voxel-engine/node_modules/voxel/meshers")
-},{"__browserify_process":1}],38:[function(require,module,exports){(function(process,global,__filename,__dirname){//The stupidest possible way to generate a Minecraft mesh (I think)
-function StupidMesh(volume, dims) {
-  var vertices = [], faces = [], x = [0,0,0], n = 0;
-  for(x[2]=0; x[2]<dims[2]; ++x[2])
-  for(x[1]=0; x[1]<dims[1]; ++x[1])
-  for(x[0]=0; x[0]<dims[0]; ++x[0], ++n)
-  if(!!volume[n]) {
-    for(var d=0; d<3; ++d) {
-      var t = [x[0], x[1], x[2]]
-        , u = [0,0,0]
-        , v = [0,0,0];
-      u[(d+1)%3] = 1;
-      v[(d+2)%3] = 1;
-      for(var s=0; s<2; ++s) {
-        t[d] = x[d] + s;
-        var tmp = u;
-        u = v;
-        v = tmp;
-        var vertex_count = vertices.length;
-        vertices.push([t[0],           t[1],           t[2]          ]);
-        vertices.push([t[0]+u[0],      t[1]+u[1],      t[2]+u[2]     ]);
-        vertices.push([t[0]+u[0]+v[0], t[1]+u[1]+v[1], t[2]+u[2]+v[2]]);
-        vertices.push([t[0]     +v[0], t[1]     +v[1], t[2]     +v[2]]);
-        faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, volume[n]]);
-      }
-    }
-  }
-  return { vertices:vertices, faces:faces };
-}
-
-
-if(exports) {
-  exports.mesher = StupidMesh;
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/meshers/stupid.js","/../../node_modules/voxel-engine/node_modules/voxel/meshers")
-},{"__browserify_process":1}],40:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = Indexer;
+},{"__browserify_process":1}],41:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = Indexer;
 
 function Indexer (opts) {
     if (!(this instanceof Indexer)) return new Indexer(opts);
@@ -49247,7 +49857,114 @@ Indexer.prototype.voxel = function (pos) {
 };
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/lib/indexer.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/lib")
-},{"__browserify_process":1}],14:[function(require,module,exports){(function(process,global,__filename,__dirname){var voxel = require('voxel');
+},{"__browserify_process":1}],21:[function(require,module,exports){(function(process,global,__filename,__dirname){var lock = require('pointer-lock')
+  , drag = require('drag-stream')
+  , full = require('fullscreen')
+
+var EE = require('events').EventEmitter
+  , Stream = require('stream').Stream
+
+module.exports = interact
+
+function interact(el, skiplock) {
+  var ee = new EE
+    , internal
+
+  if(!lock.available() || skiplock) {
+    internal = usedrag(el)
+  } else {
+    internal = uselock(el, politelydeclined)
+  }
+
+  ee.release = function() { internal.release && internal.release() }
+  ee.request = function() { internal.request && internal.request() }
+  ee.destroy = function() { internal.destroy && internal.destroy() }
+  ee.pointerAvailable = function() { return lock.available() }
+  ee.fullscreenAvailable = function() { return full.available() }
+
+  forward()
+
+  return ee
+
+  function politelydeclined() {
+    ee.emit('opt-out')
+    internal.destroy()
+    internal = usedrag(el)
+    forward()
+  }
+
+  function forward() {
+    internal.on('attain', function(stream) {
+      ee.emit('attain', stream)
+    })
+
+    internal.on('release', function() {
+      ee.emit('release')
+    })
+  }
+}
+
+function uselock(el, declined) {
+  var pointer = lock(el)
+    , fs = full(el)
+
+  pointer.on('needs-fullscreen', function() {
+    fs.once('attain', function() {
+      pointer.request()
+    })
+    fs.request()
+  })
+
+  pointer.on('error', declined)
+
+  return pointer
+}
+
+function usedrag(el) {
+  var ee = new EE
+    , d = drag(el)
+    , stream
+
+  d.paused = true
+
+  d.on('resume', function() {
+    stream = new Stream
+    stream.readable = true
+    stream.initial = null
+  })
+
+  d.on('data', function(datum) {
+    if(!stream) {
+      stream = new Stream
+      stream.readable = true
+      stream.initial = null
+    }
+
+    if(!stream.initial) {
+      stream.initial = {
+        x: datum.dx
+      , y: datum.dy
+      , t: datum.dt
+      }
+      return ee.emit('attain', stream)
+    }
+
+    if(stream.paused) {
+      ee.emit('release')
+      stream.emit('end')
+      stream.readable = false
+      stream.emit('close')
+      stream = null
+    }
+
+    stream.emit('data', datum)
+  })
+
+  return ee
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/index.js","/../../node_modules/voxel-engine/node_modules/interact")
+},{"events":10,"stream":34,"pointer-lock":42,"drag-stream":43,"fullscreen":44,"__browserify_process":1}],23:[function(require,module,exports){(function(process,global,__filename,__dirname){var voxel = require('voxel');
 var ChunkMatrix = require('./lib/chunk_matrix');
 var indexer = require('./lib/indexer');
 
@@ -49338,7 +50055,7 @@ Group.prototype.getIndex = function (pos) {
 };
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/index.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks")
-},{"./lib/chunk_matrix":41,"./lib/indexer":40,"voxel":42,"__browserify_process":1}],39:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events');
+},{"./lib/chunk_matrix":45,"./lib/indexer":41,"voxel":46,"__browserify_process":1}],40:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events');
 
 exports.isArray = isArray;
 exports.isDate = function(obj){return Object.prototype.toString.call(obj) === '[object Date]'};
@@ -49691,114 +50408,7 @@ exports.format = function(f) {
 };
 
 })(require("__browserify_process"),window,"/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin/util.js","/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin")
-},{"events":9,"__browserify_process":1}],20:[function(require,module,exports){(function(process,global,__filename,__dirname){var lock = require('pointer-lock')
-  , drag = require('drag-stream')
-  , full = require('fullscreen')
-
-var EE = require('events').EventEmitter
-  , Stream = require('stream').Stream
-
-module.exports = interact
-
-function interact(el, skiplock) {
-  var ee = new EE
-    , internal
-
-  if(!lock.available() || skiplock) {
-    internal = usedrag(el)
-  } else {
-    internal = uselock(el, politelydeclined)
-  }
-
-  ee.release = function() { internal.release && internal.release() }
-  ee.request = function() { internal.request && internal.request() }
-  ee.destroy = function() { internal.destroy && internal.destroy() }
-  ee.pointerAvailable = function() { return lock.available() }
-  ee.fullscreenAvailable = function() { return full.available() }
-
-  forward()
-
-  return ee
-
-  function politelydeclined() {
-    ee.emit('opt-out')
-    internal.destroy()
-    internal = usedrag(el)
-    forward()
-  }
-
-  function forward() {
-    internal.on('attain', function(stream) {
-      ee.emit('attain', stream)
-    })
-
-    internal.on('release', function() {
-      ee.emit('release')
-    })
-  }
-}
-
-function uselock(el, declined) {
-  var pointer = lock(el)
-    , fs = full(el)
-
-  pointer.on('needs-fullscreen', function() {
-    fs.once('attain', function() {
-      pointer.request()
-    })
-    fs.request()
-  })
-
-  pointer.on('error', declined)
-
-  return pointer
-}
-
-function usedrag(el) {
-  var ee = new EE
-    , d = drag(el)
-    , stream
-
-  d.paused = true
-
-  d.on('resume', function() {
-    stream = new Stream
-    stream.readable = true
-    stream.initial = null
-  })
-
-  d.on('data', function(datum) {
-    if(!stream) {
-      stream = new Stream
-      stream.readable = true
-      stream.initial = null
-    }
-
-    if(!stream.initial) {
-      stream.initial = {
-        x: datum.dx
-      , y: datum.dy
-      , t: datum.dt
-      }
-      return ee.emit('attain', stream)
-    }
-
-    if(stream.paused) {
-      ee.emit('release')
-      stream.emit('end')
-      stream.readable = false
-      stream.emit('close')
-      stream = null
-    }
-
-    stream.emit('data', datum)
-  })
-
-  return ee
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/index.js","/../../node_modules/voxel-engine/node_modules/interact")
-},{"events":9,"stream":33,"pointer-lock":43,"drag-stream":44,"fullscreen":45,"__browserify_process":1}],26:[function(require,module,exports){(function(process,global,__filename,__dirname){var ever = require('ever')
+},{"events":10,"__browserify_process":1}],28:[function(require,module,exports){(function(process,global,__filename,__dirname){var ever = require('ever')
   , vkey = require('vkey')
   , max = Math.max
 
@@ -49895,7 +50505,7 @@ module.exports = function(el, bindings, state) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/index.js","/../../node_modules/voxel-engine/node_modules/kb-controls")
-},{"vkey":46,"ever":47,"__browserify_process":1}],43:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = pointer
+},{"ever":47,"vkey":48,"__browserify_process":1}],42:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = pointer
 
 pointer.available = available
 
@@ -50059,7 +50669,7 @@ function shim(el) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/pointer-lock/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/pointer-lock")
-},{"events":9,"stream":33,"__browserify_process":1}],45:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = fullscreen
+},{"events":10,"stream":34,"__browserify_process":1}],44:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = fullscreen
 fullscreen.available = available
 
 var EE = require('events').EventEmitter
@@ -50150,145 +50760,7 @@ function shim(el) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/fullscreen/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/fullscreen")
-},{"events":9,"__browserify_process":1}],46:[function(require,module,exports){(function(process,global,__filename,__dirname){var ua = typeof window !== 'undefined' ? window.navigator.userAgent : ''
-  , isOSX = /OS X/.test(ua)
-  , isOpera = /Opera/.test(ua)
-  , maybeFirefox = !/like Gecko/.test(ua) && !isOpera
-
-var i, output = module.exports = {
-  0:  isOSX ? '<menu>' : '<UNK>'
-, 1:  '<mouse 1>'
-, 2:  '<mouse 2>'
-, 3:  '<break>'
-, 4:  '<mouse 3>'
-, 5:  '<mouse 4>'
-, 6:  '<mouse 5>'
-, 8:  '<backspace>'
-, 9:  '<tab>'
-, 12: '<clear>'
-, 13: '<enter>'
-, 16: '<shift>'
-, 17: '<control>'
-, 18: '<alt>'
-, 19: '<pause>'
-, 20: '<caps-lock>'
-, 21: '<ime-hangul>'
-, 23: '<ime-junja>'
-, 24: '<ime-final>'
-, 25: '<ime-kanji>'
-, 27: '<escape>'
-, 28: '<ime-convert>'
-, 29: '<ime-nonconvert>'
-, 30: '<ime-accept>'
-, 31: '<ime-mode-change>'
-, 27: '<escape>'
-, 32: '<space>'
-, 33: '<page-up>'
-, 34: '<page-down>'
-, 35: '<end>'
-, 36: '<home>'
-, 37: '<left>'
-, 38: '<up>'
-, 39: '<right>'
-, 40: '<down>'
-, 41: '<select>'
-, 42: '<print>'
-, 43: '<execute>'
-, 44: '<snapshot>'
-, 45: '<insert>'
-, 46: '<delete>'
-, 47: '<help>'
-, 91: '<meta>'  // meta-left -- no one handles left and right properly, so we coerce into one.
-, 92: '<meta>'  // meta-right
-, 93: isOSX ? '<meta>' : '<menu>'      // chrome,opera,safari all report this for meta-right (osx mbp).
-, 95: '<sleep>'
-, 106: '<num-*>'
-, 107: '<num-+>'
-, 108: '<num-enter>'
-, 109: '<num-->'
-, 110: '<num-.>'
-, 111: '<num-/>'
-, 144: '<num-lock>'
-, 145: '<scroll-lock>'
-, 160: '<shift-left>'
-, 161: '<shift-right>'
-, 162: '<control-left>'
-, 163: '<control-right>'
-, 164: '<alt-left>'
-, 165: '<alt-right>'
-, 166: '<browser-back>'
-, 167: '<browser-forward>'
-, 168: '<browser-refresh>'
-, 169: '<browser-stop>'
-, 170: '<browser-search>'
-, 171: '<browser-favorites>'
-, 172: '<browser-home>'
-
-  // ff/osx reports '<volume-mute>' for '-'
-, 173: isOSX && maybeFirefox ? '-' : '<volume-mute>'
-, 174: '<volume-down>'
-, 175: '<volume-up>'
-, 176: '<next-track>'
-, 177: '<prev-track>'
-, 178: '<stop>'
-, 179: '<play-pause>'
-, 180: '<launch-mail>'
-, 181: '<launch-media-select>'
-, 182: '<launch-app 1>'
-, 183: '<launch-app 2>'
-, 186: ';'
-, 187: '='
-, 188: ','
-, 189: '-'
-, 190: '.'
-, 191: '/'
-, 192: '`'
-, 219: '['
-, 220: '\\'
-, 221: ']'
-, 222: "'"
-, 223: '<meta>'
-, 224: '<meta>'       // firefox reports meta here.
-, 226: '<alt-gr>'
-, 229: '<ime-process>'
-, 231: isOpera ? '`' : '<unicode>'
-, 246: '<attention>'
-, 247: '<crsel>'
-, 248: '<exsel>'
-, 249: '<erase-eof>'
-, 250: '<play>'
-, 251: '<zoom>'
-, 252: '<no-name>'
-, 253: '<pa-1>'
-, 254: '<clear>'
-}
-
-for(i = 58; i < 65; ++i) {
-  output[i] = String.fromCharCode(i)
-}
-
-// 0-9
-for(i = 48; i < 58; ++i) {
-  output[i] = (i - 48)+''
-}
-
-// A-Z
-for(i = 65; i < 91; ++i) {
-  output[i] = String.fromCharCode(i)
-}
-
-// num0-9
-for(i = 96; i < 107; ++i) {
-  output[i] = '<num-'+(i - 96)+'>'
-}
-
-// F1-F24
-for(i = 112; i < 136; ++i) {
-  output[i] = 'F'+(i-111)
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/vkey/index.js","/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/vkey")
-},{"__browserify_process":1}],13:[function(require,module,exports){(function(process,global,__filename,__dirname){var THREE = require('three')
+},{"events":10,"__browserify_process":1}],16:[function(require,module,exports){(function(process,global,__filename,__dirname){var THREE = require('three')
 
 module.exports = function(data, scaleFactor, mesher) {
   return new Mesh(data, scaleFactor, mesher)
@@ -50440,37 +50912,7 @@ Mesh.prototype.faceVertexUv = function(i) {
 ;
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-mesh/index.js","/../../node_modules/voxel-engine/node_modules/voxel-mesh")
-},{"three":18,"__browserify_process":1}],48:[function(require,module,exports){(function(process,global,__filename,__dirname){function opaque(image) {
-  var canvas, ctx
-
-  if (image.nodeName.toLowerCase() === 'img') {
-    canvas = document.createElement('canvas')
-    canvas.width = image.width
-    canvas.height = image.height
-    ctx = canvas.getContext('2d')
-    ctx.drawImage(image, 0, 0)
-  } else {
-    canvas = image
-    ctx = canvas.getContext('2d')
-  }
-
-  var imageData = ctx.getImageData(0, 0, canvas.height, canvas.width)
-    , data = imageData.data
-
-  for (var i = 3, l = data.length; i < l; i += 4)
-    if (data[i] !== 255)
-      return false
-
-  return true
-};
-
-module.exports = opaque
-module.exports.opaque = opaque
-module.exports.transparent = function(image) {
-  return !opaque(image)
-};
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-texture/node_modules/opaque/index.js","/../../node_modules/voxel-engine/node_modules/voxel-texture/node_modules/opaque")
-},{"__browserify_process":1}],23:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = AABB
+},{"three":20,"__browserify_process":1}],26:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = AABB
 
 var vec3 = require('gl-matrix').vec3
 
@@ -50569,7 +51011,145 @@ proto.union = function(aabb) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/aabb-3d/index.js","/../../node_modules/voxel-engine/node_modules/aabb-3d")
-},{"gl-matrix":24,"__browserify_process":1}],25:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = SpatialEventEmitter
+},{"gl-matrix":27,"__browserify_process":1}],48:[function(require,module,exports){(function(process,global,__filename,__dirname){var ua = typeof window !== 'undefined' ? window.navigator.userAgent : ''
+  , isOSX = /OS X/.test(ua)
+  , isOpera = /Opera/.test(ua)
+  , maybeFirefox = !/like Gecko/.test(ua) && !isOpera
+
+var i, output = module.exports = {
+  0:  isOSX ? '<menu>' : '<UNK>'
+, 1:  '<mouse 1>'
+, 2:  '<mouse 2>'
+, 3:  '<break>'
+, 4:  '<mouse 3>'
+, 5:  '<mouse 4>'
+, 6:  '<mouse 5>'
+, 8:  '<backspace>'
+, 9:  '<tab>'
+, 12: '<clear>'
+, 13: '<enter>'
+, 16: '<shift>'
+, 17: '<control>'
+, 18: '<alt>'
+, 19: '<pause>'
+, 20: '<caps-lock>'
+, 21: '<ime-hangul>'
+, 23: '<ime-junja>'
+, 24: '<ime-final>'
+, 25: '<ime-kanji>'
+, 27: '<escape>'
+, 28: '<ime-convert>'
+, 29: '<ime-nonconvert>'
+, 30: '<ime-accept>'
+, 31: '<ime-mode-change>'
+, 27: '<escape>'
+, 32: '<space>'
+, 33: '<page-up>'
+, 34: '<page-down>'
+, 35: '<end>'
+, 36: '<home>'
+, 37: '<left>'
+, 38: '<up>'
+, 39: '<right>'
+, 40: '<down>'
+, 41: '<select>'
+, 42: '<print>'
+, 43: '<execute>'
+, 44: '<snapshot>'
+, 45: '<insert>'
+, 46: '<delete>'
+, 47: '<help>'
+, 91: '<meta>'  // meta-left -- no one handles left and right properly, so we coerce into one.
+, 92: '<meta>'  // meta-right
+, 93: isOSX ? '<meta>' : '<menu>'      // chrome,opera,safari all report this for meta-right (osx mbp).
+, 95: '<sleep>'
+, 106: '<num-*>'
+, 107: '<num-+>'
+, 108: '<num-enter>'
+, 109: '<num-->'
+, 110: '<num-.>'
+, 111: '<num-/>'
+, 144: '<num-lock>'
+, 145: '<scroll-lock>'
+, 160: '<shift-left>'
+, 161: '<shift-right>'
+, 162: '<control-left>'
+, 163: '<control-right>'
+, 164: '<alt-left>'
+, 165: '<alt-right>'
+, 166: '<browser-back>'
+, 167: '<browser-forward>'
+, 168: '<browser-refresh>'
+, 169: '<browser-stop>'
+, 170: '<browser-search>'
+, 171: '<browser-favorites>'
+, 172: '<browser-home>'
+
+  // ff/osx reports '<volume-mute>' for '-'
+, 173: isOSX && maybeFirefox ? '-' : '<volume-mute>'
+, 174: '<volume-down>'
+, 175: '<volume-up>'
+, 176: '<next-track>'
+, 177: '<prev-track>'
+, 178: '<stop>'
+, 179: '<play-pause>'
+, 180: '<launch-mail>'
+, 181: '<launch-media-select>'
+, 182: '<launch-app 1>'
+, 183: '<launch-app 2>'
+, 186: ';'
+, 187: '='
+, 188: ','
+, 189: '-'
+, 190: '.'
+, 191: '/'
+, 192: '`'
+, 219: '['
+, 220: '\\'
+, 221: ']'
+, 222: "'"
+, 223: '<meta>'
+, 224: '<meta>'       // firefox reports meta here.
+, 226: '<alt-gr>'
+, 229: '<ime-process>'
+, 231: isOpera ? '`' : '<unicode>'
+, 246: '<attention>'
+, 247: '<crsel>'
+, 248: '<exsel>'
+, 249: '<erase-eof>'
+, 250: '<play>'
+, 251: '<zoom>'
+, 252: '<no-name>'
+, 253: '<pa-1>'
+, 254: '<clear>'
+}
+
+for(i = 58; i < 65; ++i) {
+  output[i] = String.fromCharCode(i)
+}
+
+// 0-9
+for(i = 48; i < 58; ++i) {
+  output[i] = (i - 48)+''
+}
+
+// A-Z
+for(i = 65; i < 91; ++i) {
+  output[i] = String.fromCharCode(i)
+}
+
+// num0-9
+for(i = 96; i < 107; ++i) {
+  output[i] = '<num-'+(i - 96)+'>'
+}
+
+// F1-F24
+for(i = 112; i < 136; ++i) {
+  output[i] = 'F'+(i-111)
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/vkey/index.js","/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/vkey")
+},{"__browserify_process":1}],31:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = SpatialEventEmitter
 
 var slice = [].slice
   , Tree = require('./tree')
@@ -50701,119 +51281,7 @@ function finite(bbox) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/spatial-events/index.js","/../../node_modules/voxel-engine/node_modules/spatial-events")
-},{"./tree":49,"aabb-3d":23,"__browserify_process":1}],47:[function(require,module,exports){(function(process,global,__filename,__dirname){var EventEmitter = require('events').EventEmitter;
-
-module.exports = function (elem) {
-    return new Ever(elem);
-};
-
-function Ever (elem) {
-    this.element = elem;
-}
-
-Ever.prototype = new EventEmitter;
-
-Ever.prototype.on = function (name, cb, useCapture) {
-    if (!this._events) this._events = {};
-    if (!this._events[name]) this._events[name] = [];
-    this._events[name].push(cb);
-    this.element.addEventListener(name, cb, useCapture || false);
-
-    return this;
-};
-Ever.prototype.addListener = Ever.prototype.on;
-
-Ever.prototype.removeListener = function (type, listener, useCapture) {
-    if (!this._events) this._events = {};
-    this.element.removeEventListener(type, listener, useCapture || false);
-    
-    var xs = this.listeners(type);
-    var ix = xs.indexOf(listener);
-    if (ix >= 0) xs.splice(ix, 1);
-
-    return this;
-};
-
-Ever.prototype.removeAllListeners = function (type) {
-    var self = this;
-    function removeAll (t) {
-        var xs = self.listeners(t);
-        for (var i = 0; i < xs.length; i++) {
-            self.removeListener(t, xs[i]);
-        }
-    }
-    
-    if (type) {
-        removeAll(type)
-    }
-    else if (self._events) {
-        for (var key in self._events) {
-            if (key) removeAll(key);
-        }
-    }
-    return EventEmitter.prototype.removeAllListeners.apply(self, arguments);
-}
-
-var initSignatures = require('./init.json');
-
-Ever.prototype.emit = function (name, ev) {
-    if (typeof name === 'object') {
-        ev = name;
-        name = ev.type;
-    }
-    
-    if (!isEvent(ev)) {
-        var type = Ever.typeOf(name);
-        
-        var opts = ev || {};
-        if (opts.type === undefined) opts.type = name;
-        
-        ev = document.createEvent(type + 's');
-        var init = typeof ev['init' + type] === 'function'
-            ? 'init' + type : 'initEvent'
-        ;
-        
-        var sig = initSignatures[init];
-        var used = {};
-        var args = [];
-        
-        for (var i = 0; i < sig.length; i++) {
-            var key = sig[i];
-            args.push(opts[key]);
-            used[key] = true;
-        }
-        ev[init].apply(ev, args);
-        
-        // attach remaining unused options to the object
-        for (var key in opts) {
-            if (!used[key]) ev[key] = opts[key];
-        }
-    }
-    return this.element.dispatchEvent(ev);
-};
-
-function isEvent (ev) {
-    var s = Object.prototype.toString.call(ev);
-    return /\[object \S+Event\]/.test(s);
-}
-
-Ever.types = require('./types.json');
-Ever.typeOf = (function () {
-    var types = {};
-    for (var key in Ever.types) {
-        var ts = Ever.types[key];
-        for (var i = 0; i < ts.length; i++) {
-            types[ts[i]] = key;
-        }
-    }
-    
-    return function (name) {
-        return types[name] || 'Event';
-    };
-})();;
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever/index.js","/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever")
-},{"events":9,"./init.json":50,"./types.json":51,"__browserify_process":1}],27:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = physical
+},{"./tree":49,"aabb-3d":26,"__browserify_process":1}],30:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = physical
 
 var aabb = require('aabb-3d')
   , THREE = require('three')
@@ -51023,103 +51491,35 @@ proto.atRestZ = function() {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-physical/index.js","/../../node_modules/voxel-engine/node_modules/voxel-physical")
-},{"aabb-3d":23,"three":18,"__browserify_process":1}],42:[function(require,module,exports){(function(process,global,__filename,__dirname){var chunker = require('./chunker')
+},{"aabb-3d":26,"three":20,"__browserify_process":1}],33:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = coordinates
 
-module.exports = function(opts) {
-  if (!opts.generateVoxelChunk) opts.generateVoxelChunk = function(low, high) {
-    return generate(low, high, module.exports.generator['Valley'])
+var aabb = require('aabb-3d')
+var events = require('events')
+
+function coordinates(spatial, box, regionWidth) {
+  var emitter = new events.EventEmitter()
+  var lastRegion = [NaN, NaN, NaN]
+  var thisRegion
+
+  if (arguments.length === 2) {
+    regionWidth = box
+    box = aabb([-Infinity, -Infinity, -Infinity], [Infinity, Infinity, Infinity])
   }
-  return chunker(opts)
-}
 
-module.exports.meshers = {
-  culled: require('./meshers/culled').mesher,
-  greedy: require('./meshers/greedy').mesher,
-  monotone: require('./meshers/monotone').mesher,
-  stupid: require('./meshers/stupid').mesher
-}
-
-module.exports.Chunker = chunker.Chunker
-module.exports.geometry = {}
-module.exports.generator = {}
-module.exports.generate = generate
-
-// from https://github.com/mikolalysenko/mikolalysenko.github.com/blob/master/MinecraftMeshes2/js/testdata.js#L4
-function generate(l, h, f) {
-  var d = [ h[0]-l[0], h[1]-l[1], h[2]-l[2] ]
-  var v = new Int8Array(d[0]*d[1]*d[2])
-  var n = 0
-  for(var k=l[2]; k<h[2]; ++k)
-  for(var j=l[1]; j<h[1]; ++j)
-  for(var i=l[0]; i<h[0]; ++i, ++n) {
-    v[n] = f(i,j,k,n)
+  spatial.on('position', box, updateRegion)
+  
+  function updateRegion(pos) {
+    thisRegion = [Math.floor(pos[0] / regionWidth), Math.floor(pos[1] / regionWidth), Math.floor(pos[2] / regionWidth)]
+    if (thisRegion[0] !== lastRegion[0] || thisRegion[1] !== lastRegion[1] || thisRegion[2] !== lastRegion[2]) {
+      emitter.emit('change', thisRegion)
+    }
+    lastRegion = thisRegion
   }
-  return {voxels:v, dims:d}
+ 
+  return emitter
 }
-
-// shape and terrain generator functions
-module.exports.generator['Sphere'] = function(i,j,k) {
-  return i*i+j*j+k*k <= 16*16 ? 1 : 0
-}
-
-module.exports.generator['Noise'] = function(i,j,k) {
-  return Math.random() < 0.1 ? Math.random() * 0xffffff : 0;
-}
-
-module.exports.generator['Dense Noise'] = function(i,j,k) {
-  return Math.round(Math.random() * 0xffffff);
-}
-
-module.exports.generator['Checker'] = function(i,j,k) {
-  return !!((i+j+k)&1) ? (((i^j^k)&2) ? 1 : 0xffffff) : 0;
-}
-
-module.exports.generator['Hill'] = function(i,j,k) {
-  return j <= 16 * Math.exp(-(i*i + k*k) / 64) ? 1 : 0;
-}
-
-module.exports.generator['Valley'] = function(i,j,k) {
-  return j <= (i*i + k*k) * 31 / (32*32*2) + 1 ? 1 : 0;
-}
-
-module.exports.generator['Hilly Terrain'] = function(i,j,k) {
-  var h0 = 3.0 * Math.sin(Math.PI * i / 12.0 - Math.PI * k * 0.1) + 27;    
-  if(j > h0+1) {
-    return 0;
-  }
-  if(h0 <= j) {
-    return 1;
-  }
-  var h1 = 2.0 * Math.sin(Math.PI * i * 0.25 - Math.PI * k * 0.3) + 20;
-  if(h1 <= j) {
-    return 2;
-  }
-  if(2 < j) {
-    return Math.random() < 0.1 ? 0x222222 : 0xaaaaaa;
-  }
-  return 3;
-}
-
-module.exports.scale = function ( x, fromLow, fromHigh, toLow, toHigh ) {
-  return ( x - fromLow ) * ( toHigh - toLow ) / ( fromHigh - fromLow ) + toLow
-}
-
-// convenience function that uses the above functions to prebake some simple voxel geometries
-module.exports.generateExamples = function() {
-  return {
-    'Sphere': generate([-16,-16,-16], [16,16,16], module.exports.generator['Sphere']),
-    'Noise': generate([0,0,0], [16,16,16], module.exports.generator['Noise']),
-    'Dense Noise': generate([0,0,0], [16,16,16], module.exports.generator['Dense Noise']),
-    'Checker': generate([0,0,0], [8,8,8], module.exports.generator['Checker']),
-    'Hill': generate([-16, 0, -16], [16,16,16], module.exports.generator['Hill']),
-    'Valley': generate([0,0,0], [32,32,32], module.exports.generator['Valley']),
-    'Hilly Terrain': generate([0, 0, 0], [32,32,32], module.exports.generator['Hilly Terrain'])
-  }
-}
-
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/index.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel")
-},{"./chunker":52,"./meshers/culled":53,"./meshers/greedy":54,"./meshers/monotone":55,"./meshers/stupid":56,"__browserify_process":1}],29:[function(require,module,exports){(function(process,global,__filename,__dirname){var transparent = require('opaque').transparent;
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-region-change/index.js","/../../node_modules/voxel-engine/node_modules/voxel-region-change")
+},{"events":10,"aabb-3d":26,"__browserify_process":1}],32:[function(require,module,exports){(function(process,global,__filename,__dirname){var transparent = require('opaque').transparent;
 
 function Texture(opts) {
   var self = this;
@@ -51335,78 +51735,245 @@ function defaults(obj) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-texture/index.js","/../../node_modules/voxel-engine/node_modules/voxel-texture")
-},{"opaque":48,"three":18,"__browserify_process":1}],30:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = coordinates
+},{"opaque":50,"three":20,"__browserify_process":1}],50:[function(require,module,exports){(function(process,global,__filename,__dirname){function opaque(image) {
+  var canvas, ctx
 
-var aabb = require('aabb-3d')
-var events = require('events')
-
-function coordinates(spatial, box, regionWidth) {
-  var emitter = new events.EventEmitter()
-  var lastRegion = [NaN, NaN, NaN]
-  var thisRegion
-
-  if (arguments.length === 2) {
-    regionWidth = box
-    box = aabb([-Infinity, -Infinity, -Infinity], [Infinity, Infinity, Infinity])
+  if (image.nodeName.toLowerCase() === 'img') {
+    canvas = document.createElement('canvas')
+    canvas.width = image.width
+    canvas.height = image.height
+    ctx = canvas.getContext('2d')
+    ctx.drawImage(image, 0, 0)
+  } else {
+    canvas = image
+    ctx = canvas.getContext('2d')
   }
 
-  spatial.on('position', box, updateRegion)
-  
-  function updateRegion(pos) {
-    thisRegion = [Math.floor(pos[0] / regionWidth), Math.floor(pos[1] / regionWidth), Math.floor(pos[2] / regionWidth)]
-    if (thisRegion[0] !== lastRegion[0] || thisRegion[1] !== lastRegion[1] || thisRegion[2] !== lastRegion[2]) {
-      emitter.emit('change', thisRegion)
+  var imageData = ctx.getImageData(0, 0, canvas.height, canvas.width)
+    , data = imageData.data
+
+  for (var i = 3, l = data.length; i < l; i += 4)
+    if (data[i] !== 255)
+      return false
+
+  return true
+};
+
+module.exports = opaque
+module.exports.opaque = opaque
+module.exports.transparent = function(image) {
+  return !opaque(image)
+};
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-texture/node_modules/opaque/index.js","/../../node_modules/voxel-engine/node_modules/voxel-texture/node_modules/opaque")
+},{"__browserify_process":1}],47:[function(require,module,exports){(function(process,global,__filename,__dirname){var EventEmitter = require('events').EventEmitter;
+
+module.exports = function (elem) {
+    return new Ever(elem);
+};
+
+function Ever (elem) {
+    this.element = elem;
+}
+
+Ever.prototype = new EventEmitter;
+
+Ever.prototype.on = function (name, cb, useCapture) {
+    if (!this._events) this._events = {};
+    if (!this._events[name]) this._events[name] = [];
+    this._events[name].push(cb);
+    this.element.addEventListener(name, cb, useCapture || false);
+
+    return this;
+};
+Ever.prototype.addListener = Ever.prototype.on;
+
+Ever.prototype.removeListener = function (type, listener, useCapture) {
+    if (!this._events) this._events = {};
+    this.element.removeEventListener(type, listener, useCapture || false);
+    
+    var xs = this.listeners(type);
+    var ix = xs.indexOf(listener);
+    if (ix >= 0) xs.splice(ix, 1);
+
+    return this;
+};
+
+Ever.prototype.removeAllListeners = function (type) {
+    var self = this;
+    function removeAll (t) {
+        var xs = self.listeners(t);
+        for (var i = 0; i < xs.length; i++) {
+            self.removeListener(t, xs[i]);
+        }
     }
-    lastRegion = thisRegion
-  }
- 
-  return emitter
-}
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-region-change/index.js","/../../node_modules/voxel-engine/node_modules/voxel-region-change")
-},{"events":9,"aabb-3d":23,"__browserify_process":1}],50:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports={
-  "initEvent" : [
-    "type",
-    "canBubble", 
-    "cancelable"
-  ],
-  "initUIEvent" : [
-    "type",
-    "canBubble", 
-    "cancelable", 
-    "view", 
-    "detail"
-  ],
-  "initMouseEvent" : [
-    "type",
-    "canBubble", 
-    "cancelable", 
-    "view", 
-    "detail", 
-    "screenX", 
-    "screenY", 
-    "clientX", 
-    "clientY", 
-    "ctrlKey", 
-    "altKey", 
-    "shiftKey", 
-    "metaKey", 
-    "button",
-    "relatedTarget"
-  ],
-  "initMutationEvent" : [
-    "type",
-    "canBubble", 
-    "cancelable", 
-    "relatedNode", 
-    "prevValue", 
-    "newValue", 
-    "attrName", 
-    "attrChange"
-  ]
+    
+    if (type) {
+        removeAll(type)
+    }
+    else if (self._events) {
+        for (var key in self._events) {
+            if (key) removeAll(key);
+        }
+    }
+    return EventEmitter.prototype.removeAllListeners.apply(self, arguments);
 }
 
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever/init.json","/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever")
-},{"__browserify_process":1}],51:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports={
+var initSignatures = require('./init.json');
+
+Ever.prototype.emit = function (name, ev) {
+    if (typeof name === 'object') {
+        ev = name;
+        name = ev.type;
+    }
+    
+    if (!isEvent(ev)) {
+        var type = Ever.typeOf(name);
+        
+        var opts = ev || {};
+        if (opts.type === undefined) opts.type = name;
+        
+        ev = document.createEvent(type + 's');
+        var init = typeof ev['init' + type] === 'function'
+            ? 'init' + type : 'initEvent'
+        ;
+        
+        var sig = initSignatures[init];
+        var used = {};
+        var args = [];
+        
+        for (var i = 0; i < sig.length; i++) {
+            var key = sig[i];
+            args.push(opts[key]);
+            used[key] = true;
+        }
+        ev[init].apply(ev, args);
+        
+        // attach remaining unused options to the object
+        for (var key in opts) {
+            if (!used[key]) ev[key] = opts[key];
+        }
+    }
+    return this.element.dispatchEvent(ev);
+};
+
+function isEvent (ev) {
+    var s = Object.prototype.toString.call(ev);
+    return /\[object \S+Event\]/.test(s);
+}
+
+Ever.types = require('./types.json');
+Ever.typeOf = (function () {
+    var types = {};
+    for (var key in Ever.types) {
+        var ts = Ever.types[key];
+        for (var i = 0; i < ts.length; i++) {
+            types[ts[i]] = key;
+        }
+    }
+    
+    return function (name) {
+        return types[name] || 'Event';
+    };
+})();;
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever/index.js","/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever")
+},{"events":10,"./init.json":51,"./types.json":52,"__browserify_process":1}],46:[function(require,module,exports){(function(process,global,__filename,__dirname){var chunker = require('./chunker')
+
+module.exports = function(opts) {
+  if (!opts.generateVoxelChunk) opts.generateVoxelChunk = function(low, high) {
+    return generate(low, high, module.exports.generator['Valley'])
+  }
+  return chunker(opts)
+}
+
+module.exports.meshers = {
+  culled: require('./meshers/culled').mesher,
+  greedy: require('./meshers/greedy').mesher,
+  monotone: require('./meshers/monotone').mesher,
+  stupid: require('./meshers/stupid').mesher
+}
+
+module.exports.Chunker = chunker.Chunker
+module.exports.geometry = {}
+module.exports.generator = {}
+module.exports.generate = generate
+
+// from https://github.com/mikolalysenko/mikolalysenko.github.com/blob/master/MinecraftMeshes2/js/testdata.js#L4
+function generate(l, h, f) {
+  var d = [ h[0]-l[0], h[1]-l[1], h[2]-l[2] ]
+  var v = new Int8Array(d[0]*d[1]*d[2])
+  var n = 0
+  for(var k=l[2]; k<h[2]; ++k)
+  for(var j=l[1]; j<h[1]; ++j)
+  for(var i=l[0]; i<h[0]; ++i, ++n) {
+    v[n] = f(i,j,k,n)
+  }
+  return {voxels:v, dims:d}
+}
+
+// shape and terrain generator functions
+module.exports.generator['Sphere'] = function(i,j,k) {
+  return i*i+j*j+k*k <= 16*16 ? 1 : 0
+}
+
+module.exports.generator['Noise'] = function(i,j,k) {
+  return Math.random() < 0.1 ? Math.random() * 0xffffff : 0;
+}
+
+module.exports.generator['Dense Noise'] = function(i,j,k) {
+  return Math.round(Math.random() * 0xffffff);
+}
+
+module.exports.generator['Checker'] = function(i,j,k) {
+  return !!((i+j+k)&1) ? (((i^j^k)&2) ? 1 : 0xffffff) : 0;
+}
+
+module.exports.generator['Hill'] = function(i,j,k) {
+  return j <= 16 * Math.exp(-(i*i + k*k) / 64) ? 1 : 0;
+}
+
+module.exports.generator['Valley'] = function(i,j,k) {
+  return j <= (i*i + k*k) * 31 / (32*32*2) + 1 ? 1 : 0;
+}
+
+module.exports.generator['Hilly Terrain'] = function(i,j,k) {
+  var h0 = 3.0 * Math.sin(Math.PI * i / 12.0 - Math.PI * k * 0.1) + 27;    
+  if(j > h0+1) {
+    return 0;
+  }
+  if(h0 <= j) {
+    return 1;
+  }
+  var h1 = 2.0 * Math.sin(Math.PI * i * 0.25 - Math.PI * k * 0.3) + 20;
+  if(h1 <= j) {
+    return 2;
+  }
+  if(2 < j) {
+    return Math.random() < 0.1 ? 0x222222 : 0xaaaaaa;
+  }
+  return 3;
+}
+
+module.exports.scale = function ( x, fromLow, fromHigh, toLow, toHigh ) {
+  return ( x - fromLow ) * ( toHigh - toLow ) / ( fromHigh - fromLow ) + toLow
+}
+
+// convenience function that uses the above functions to prebake some simple voxel geometries
+module.exports.generateExamples = function() {
+  return {
+    'Sphere': generate([-16,-16,-16], [16,16,16], module.exports.generator['Sphere']),
+    'Noise': generate([0,0,0], [16,16,16], module.exports.generator['Noise']),
+    'Dense Noise': generate([0,0,0], [16,16,16], module.exports.generator['Dense Noise']),
+    'Checker': generate([0,0,0], [8,8,8], module.exports.generator['Checker']),
+    'Hill': generate([-16, 0, -16], [16,16,16], module.exports.generator['Hill']),
+    'Valley': generate([0,0,0], [32,32,32], module.exports.generator['Valley']),
+    'Hilly Terrain': generate([0, 0, 0], [32,32,32], module.exports.generator['Hilly Terrain'])
+  }
+}
+
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/index.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel")
+},{"./chunker":53,"./meshers/culled":54,"./meshers/greedy":55,"./meshers/monotone":56,"./meshers/stupid":57,"__browserify_process":1}],52:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports={
   "MouseEvent" : [
     "click",
     "mousedown",
@@ -51451,7 +52018,50 @@ function coordinates(spatial, box, regionWidth) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever/types.json","/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever")
-},{"__browserify_process":1}],53:[function(require,module,exports){(function(process,global,__filename,__dirname){//Naive meshing (with face culling)
+},{"__browserify_process":1}],51:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports={
+  "initEvent" : [
+    "type",
+    "canBubble", 
+    "cancelable"
+  ],
+  "initUIEvent" : [
+    "type",
+    "canBubble", 
+    "cancelable", 
+    "view", 
+    "detail"
+  ],
+  "initMouseEvent" : [
+    "type",
+    "canBubble", 
+    "cancelable", 
+    "view", 
+    "detail", 
+    "screenX", 
+    "screenY", 
+    "clientX", 
+    "clientY", 
+    "ctrlKey", 
+    "altKey", 
+    "shiftKey", 
+    "metaKey", 
+    "button",
+    "relatedTarget"
+  ],
+  "initMutationEvent" : [
+    "type",
+    "canBubble", 
+    "cancelable", 
+    "relatedNode", 
+    "prevValue", 
+    "newValue", 
+    "attrName", 
+    "attrChange"
+  ]
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever/init.json","/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever")
+},{"__browserify_process":1}],54:[function(require,module,exports){(function(process,global,__filename,__dirname){//Naive meshing (with face culling)
 function CulledMesh(volume, dims) {
   //Precalculate direction vectors for convenience
   var dir = new Array(3);
@@ -51503,7 +52113,7 @@ if(exports) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers/culled.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers")
-},{"__browserify_process":1}],54:[function(require,module,exports){(function(process,global,__filename,__dirname){var GreedyMesh = (function() {
+},{"__browserify_process":1}],55:[function(require,module,exports){(function(process,global,__filename,__dirname){var GreedyMesh = (function() {
 //Cache buffer internally
 var mask = new Int32Array(4096);
 
@@ -51620,7 +52230,144 @@ if(exports) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers/greedy.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers")
-},{"__browserify_process":1}],55:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict";
+},{"__browserify_process":1}],35:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events')
+var inherits = require('inherits')
+
+module.exports = function(opts) {
+  return new Chunker(opts)
+}
+
+module.exports.Chunker = Chunker
+
+function Chunker(opts) {
+  this.distance = opts.chunkDistance || 2
+  this.chunkSize = opts.chunkSize || 32
+  this.cubeSize = opts.cubeSize || 25
+  this.generateVoxelChunk = opts.generateVoxelChunk
+  this.chunks = {}
+  this.meshes = {}
+
+  if (this.chunkSize & this.chunkSize-1 !== 0)
+    throw new Error('chunkSize must be a power of 2')
+  var bits = 0;
+  for (var size = this.chunkSize; size > 0; size >>= 1) bits++;
+  this.chunkBits = bits - 1;
+}
+
+inherits(Chunker, events.EventEmitter)
+
+Chunker.prototype.nearbyChunks = function(position, distance) {
+  var current = this.chunkAtPosition(position)
+  var x = current[0]
+  var y = current[1]
+  var z = current[2]
+  var dist = distance || this.distance
+  var nearby = []
+  for (var cx = (x - dist); cx !== (x + dist); ++cx) {
+    for (var cy = (y - dist); cy !== (y + dist); ++cy) {
+      for (var cz = (z - dist); cz !== (z + dist); ++cz) {
+        nearby.push([cx, cy, cz])
+      }
+    }
+  }
+  return nearby
+}
+
+Chunker.prototype.requestMissingChunks = function(position) {
+  var self = this
+  this.nearbyChunks(position).map(function(chunk) {
+    if (!self.chunks[chunk.join('|')]) {
+      self.emit('missingChunk', chunk)
+    }
+  })
+}
+
+Chunker.prototype.getBounds = function(x, y, z) {
+  var bits = this.chunkBits
+  var low = [x << bits, y << bits, z << bits]
+  var high = [(x+1) << bits, (y+1) << bits, (z+1) << bits]
+  return [low, high]
+}
+
+Chunker.prototype.generateChunk = function(x, y, z) {
+  var self = this
+  var bounds = this.getBounds(x, y, z)
+  var chunk = this.generateVoxelChunk(bounds[0], bounds[1], x, y, z)
+  var position = [x, y, z]
+  chunk.position = position
+  this.chunks[position.join('|')] = chunk
+  return chunk
+}
+
+Chunker.prototype.chunkAtCoordinates = function(x, y, z) {
+  var bits = this.chunkBits;
+  var cx = x >> bits;
+  var cy = y >> bits;
+  var cz = z >> bits;
+  var chunkPos = [cx, cy, cz];
+  return chunkPos;
+}
+
+Chunker.prototype.chunkAtPosition = function(position) {
+  var cubeSize = this.cubeSize;
+  var x = Math.floor(position[0] / cubeSize)
+  var y = Math.floor(position[1] / cubeSize)
+  var z = Math.floor(position[2] / cubeSize)
+  var chunkPos = this.chunkAtCoordinates(x, y, z)
+  return chunkPos
+};
+
+Chunker.prototype.voxelIndexFromCoordinates = function(x, y, z) {
+  var bits = this.chunkBits
+  var mask = (1 << bits) - 1
+  var vidx = (x & mask) + ((y & mask) << bits) + ((z & mask) << bits * 2)
+  return vidx
+}
+
+Chunker.prototype.voxelIndexFromPosition = function(pos) {
+  var v = this.voxelVector(pos)
+  return this.voxelIndex(v)
+}
+
+Chunker.prototype.voxelAtCoordinates = function(x, y, z, val) {
+  var ckey = this.chunkAtCoordinates(x, y, z).join('|')
+  var chunk = this.chunks[ckey]
+  if (!chunk) return false
+  var vidx = this.voxelIndexFromCoordinates(x, y, z)
+  var v = chunk.voxels[vidx]
+  if (typeof val !== 'undefined') {
+    chunk.voxels[vidx] = val
+  }
+  return v
+}
+
+Chunker.prototype.voxelAtPosition = function(pos, val) {
+  var cubeSize = this.cubeSize;
+  var x = Math.floor(pos[0] / cubeSize)
+  var y = Math.floor(pos[1] / cubeSize)
+  var z = Math.floor(pos[2] / cubeSize)
+  var v = this.voxelAtCoordinates(x, y, z, val)
+  return v;
+}
+
+// deprecated
+Chunker.prototype.voxelIndex = function(voxelVector) {
+  var vidx = this.voxelIndexFromCoordinates(voxelVector[0], voxelVector[1], voxelVector[2])
+  return vidx
+}
+
+// deprecated
+Chunker.prototype.voxelVector = function(pos) {
+  var cubeSize = this.cubeSize
+  var mask = (1 << this.chunkBits) - 1
+  var vx = (Math.floor(pos[0] / cubeSize)) & mask
+  var vy = (Math.floor(pos[1] / cubeSize)) & mask
+  var vz = (Math.floor(pos[2] / cubeSize)) & mask
+  return [vx, vy, vz]
+};
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/chunker.js","/../../node_modules/voxel-engine/node_modules/voxel")
+},{"events":10,"inherits":19,"__browserify_process":1}],56:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict";
 
 var MonotoneMesh = (function(){
 
@@ -51873,7 +52620,7 @@ if(exports) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers/monotone.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers")
-},{"__browserify_process":1}],56:[function(require,module,exports){(function(process,global,__filename,__dirname){//The stupidest possible way to generate a Minecraft mesh (I think)
+},{"__browserify_process":1}],57:[function(require,module,exports){(function(process,global,__filename,__dirname){//The stupidest possible way to generate a Minecraft mesh (I think)
 function StupidMesh(volume, dims) {
   var vertices = [], faces = [], x = [0,0,0], n = 0;
   for(x[2]=0; x[2]<dims[2]; ++x[2])
@@ -51909,144 +52656,7 @@ if(exports) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers/stupid.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers")
-},{"__browserify_process":1}],34:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events')
-var inherits = require('inherits')
-
-module.exports = function(opts) {
-  return new Chunker(opts)
-}
-
-module.exports.Chunker = Chunker
-
-function Chunker(opts) {
-  this.distance = opts.chunkDistance || 2
-  this.chunkSize = opts.chunkSize || 32
-  this.cubeSize = opts.cubeSize || 25
-  this.generateVoxelChunk = opts.generateVoxelChunk
-  this.chunks = {}
-  this.meshes = {}
-
-  if (this.chunkSize & this.chunkSize-1 !== 0)
-    throw new Error('chunkSize must be a power of 2')
-  var bits = 0;
-  for (var size = this.chunkSize; size > 0; size >>= 1) bits++;
-  this.chunkBits = bits - 1;
-}
-
-inherits(Chunker, events.EventEmitter)
-
-Chunker.prototype.nearbyChunks = function(position, distance) {
-  var current = this.chunkAtPosition(position)
-  var x = current[0]
-  var y = current[1]
-  var z = current[2]
-  var dist = distance || this.distance
-  var nearby = []
-  for (var cx = (x - dist); cx !== (x + dist); ++cx) {
-    for (var cy = (y - dist); cy !== (y + dist); ++cy) {
-      for (var cz = (z - dist); cz !== (z + dist); ++cz) {
-        nearby.push([cx, cy, cz])
-      }
-    }
-  }
-  return nearby
-}
-
-Chunker.prototype.requestMissingChunks = function(position) {
-  var self = this
-  this.nearbyChunks(position).map(function(chunk) {
-    if (!self.chunks[chunk.join('|')]) {
-      self.emit('missingChunk', chunk)
-    }
-  })
-}
-
-Chunker.prototype.getBounds = function(x, y, z) {
-  var bits = this.chunkBits
-  var low = [x << bits, y << bits, z << bits]
-  var high = [(x+1) << bits, (y+1) << bits, (z+1) << bits]
-  return [low, high]
-}
-
-Chunker.prototype.generateChunk = function(x, y, z) {
-  var self = this
-  var bounds = this.getBounds(x, y, z)
-  var chunk = this.generateVoxelChunk(bounds[0], bounds[1], x, y, z)
-  var position = [x, y, z]
-  chunk.position = position
-  this.chunks[position.join('|')] = chunk
-  return chunk
-}
-
-Chunker.prototype.chunkAtCoordinates = function(x, y, z) {
-  var bits = this.chunkBits;
-  var cx = x >> bits;
-  var cy = y >> bits;
-  var cz = z >> bits;
-  var chunkPos = [cx, cy, cz];
-  return chunkPos;
-}
-
-Chunker.prototype.chunkAtPosition = function(position) {
-  var cubeSize = this.cubeSize;
-  var x = Math.floor(position[0] / cubeSize)
-  var y = Math.floor(position[1] / cubeSize)
-  var z = Math.floor(position[2] / cubeSize)
-  var chunkPos = this.chunkAtCoordinates(x, y, z)
-  return chunkPos
-};
-
-Chunker.prototype.voxelIndexFromCoordinates = function(x, y, z) {
-  var bits = this.chunkBits
-  var mask = (1 << bits) - 1
-  var vidx = (x & mask) + ((y & mask) << bits) + ((z & mask) << bits * 2)
-  return vidx
-}
-
-Chunker.prototype.voxelIndexFromPosition = function(pos) {
-  var v = this.voxelVector(pos)
-  return this.voxelIndex(v)
-}
-
-Chunker.prototype.voxelAtCoordinates = function(x, y, z, val) {
-  var ckey = this.chunkAtCoordinates(x, y, z).join('|')
-  var chunk = this.chunks[ckey]
-  if (!chunk) return false
-  var vidx = this.voxelIndexFromCoordinates(x, y, z)
-  var v = chunk.voxels[vidx]
-  if (typeof val !== 'undefined') {
-    chunk.voxels[vidx] = val
-  }
-  return v
-}
-
-Chunker.prototype.voxelAtPosition = function(pos, val) {
-  var cubeSize = this.cubeSize;
-  var x = Math.floor(pos[0] / cubeSize)
-  var y = Math.floor(pos[1] / cubeSize)
-  var z = Math.floor(pos[2] / cubeSize)
-  var v = this.voxelAtCoordinates(x, y, z, val)
-  return v;
-}
-
-// deprecated
-Chunker.prototype.voxelIndex = function(voxelVector) {
-  var vidx = this.voxelIndexFromCoordinates(voxelVector[0], voxelVector[1], voxelVector[2])
-  return vidx
-}
-
-// deprecated
-Chunker.prototype.voxelVector = function(pos) {
-  var cubeSize = this.cubeSize
-  var mask = (1 << this.chunkBits) - 1
-  var vx = (Math.floor(pos[0] / cubeSize)) & mask
-  var vy = (Math.floor(pos[1] / cubeSize)) & mask
-  var vz = (Math.floor(pos[2] / cubeSize)) & mask
-  return [vx, vy, vz]
-};
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/chunker.js","/../../node_modules/voxel-engine/node_modules/voxel")
-},{"events":9,"inherits":19,"__browserify_process":1}],49:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = Tree
+},{"__browserify_process":1}],49:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = Tree
 
 var aabb = require('aabb-3d')
 
@@ -52172,7 +52782,7 @@ proto.send = function(event, bbox, args) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/spatial-events/tree.js","/../../node_modules/voxel-engine/node_modules/spatial-events")
-},{"aabb-3d":23,"__browserify_process":1}],44:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = dragstream
+},{"aabb-3d":26,"__browserify_process":1}],43:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = dragstream
 
 var Stream = require('stream')
   , read = require('domnode-dom').createReadStream
@@ -52240,7 +52850,7 @@ function dragstream(el) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream")
-},{"stream":33,"domnode-dom":57,"through":58,"__browserify_process":1}],41:[function(require,module,exports){(function(process,global,__filename,__dirname){var voxelMesh = require('voxel-mesh');
+},{"stream":34,"through":58,"domnode-dom":59,"__browserify_process":1}],45:[function(require,module,exports){(function(process,global,__filename,__dirname){var voxelMesh = require('voxel-mesh');
 var voxel = require('voxel');
 
 var EventEmitter = require('events').EventEmitter;
@@ -52361,7 +52971,7 @@ ChunkMatrix.prototype._update = function (ci) {
 };
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/lib/chunk_matrix.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/lib")
-},{"events":9,"./indexer":40,"voxel":42,"voxel-mesh":13,"inherits":19,"__browserify_process":1}],58:[function(require,module,exports){(function(process,global,__filename,__dirname){var Stream = require('stream')
+},{"events":10,"./indexer":41,"voxel":46,"voxel-mesh":16,"inherits":19,"__browserify_process":1}],58:[function(require,module,exports){(function(process,global,__filename,__dirname){var Stream = require('stream')
 
 // through
 //
@@ -52461,48 +53071,10 @@ function through (write, end) {
 
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/through/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/through")
-},{"stream":33,"__browserify_process":1}],57:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = require('./lib/index')
+},{"stream":34,"__browserify_process":1}],59:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = require('./lib/index')
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom")
-},{"./lib/index":59,"__browserify_process":1}],59:[function(require,module,exports){(function(process,global,__filename,__dirname){var WriteStream = require('./writable')
-  , ReadStream = require('./readable')
-  , DOMStream = {}
-
-DOMStream.WriteStream = WriteStream
-DOMStream.ReadStream = ReadStream
-
-DOMStream.createAppendStream = function(el, mimetype) {
-  return new DOMStream.WriteStream(
-      el
-    , DOMStream.WriteStream.APPEND
-    , mimetype
-  )
-}
-
-DOMStream.createWriteStream = function(el, mimetype) {
-  return new DOMStream.WriteStream(
-      el
-    , DOMStream.WriteStream.WRITE
-    , mimetype
-  )
-}
-
-DOMStream.createReadStream =
-DOMStream.createEventStream = function(el, type, preventDefault) {
-  preventDefault = preventDefault === undefined ? true : preventDefault
-
-  return new DOMStream.ReadStream(
-      el
-    , type
-    , preventDefault
-  )
-}
-
-module.exports = DOMStream
-
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib")
-},{"./writable":60,"./readable":61,"__browserify_process":1}],52:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events')
+},{"./lib/index":60,"__browserify_process":1}],53:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events')
 var inherits = require('inherits')
 
 module.exports = function(opts) {
@@ -52610,7 +53182,45 @@ Chunker.prototype.voxelVector = function(pos) {
 };
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/chunker.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel")
-},{"events":9,"inherits":19,"__browserify_process":1}],60:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = DOMStream
+},{"events":10,"inherits":19,"__browserify_process":1}],60:[function(require,module,exports){(function(process,global,__filename,__dirname){var WriteStream = require('./writable')
+  , ReadStream = require('./readable')
+  , DOMStream = {}
+
+DOMStream.WriteStream = WriteStream
+DOMStream.ReadStream = ReadStream
+
+DOMStream.createAppendStream = function(el, mimetype) {
+  return new DOMStream.WriteStream(
+      el
+    , DOMStream.WriteStream.APPEND
+    , mimetype
+  )
+}
+
+DOMStream.createWriteStream = function(el, mimetype) {
+  return new DOMStream.WriteStream(
+      el
+    , DOMStream.WriteStream.WRITE
+    , mimetype
+  )
+}
+
+DOMStream.createReadStream =
+DOMStream.createEventStream = function(el, type, preventDefault) {
+  preventDefault = preventDefault === undefined ? true : preventDefault
+
+  return new DOMStream.ReadStream(
+      el
+    , type
+    , preventDefault
+  )
+}
+
+module.exports = DOMStream
+
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib")
+},{"./writable":61,"./readable":62,"__browserify_process":1}],61:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = DOMStream
 
 var Stream = require('stream').Stream
 
@@ -52688,7 +53298,7 @@ proto.constructTextPlain = function(data) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib/writable.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib")
-},{"stream":33,"__browserify_process":1}],61:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = DOMStream
+},{"stream":34,"__browserify_process":1}],62:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = DOMStream
 
 var Stream = require('stream').Stream
 
@@ -52797,4 +53407,4 @@ function valueFromElement(el) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib/readable.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib")
-},{"stream":33,"__browserify_process":1}]},{},[2]);
+},{"stream":34,"__browserify_process":1}]},{},[3]);

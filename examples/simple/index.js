@@ -9,21 +9,21 @@ var game = new Game({
 	generate: function(x, y, z) {
     //if (y == -1) return 1
     //if (y < 0 && y > -5 && x < 10 && x > 0 && z < 10 && z > 0) return 0
-    var val = y + 3 * Math.sin(x / 4)
+    var val = y + 3 * Math.sin(z / 4)
     if (val < -1 && val > -5) return 1
     //if (z = 0 && y <= 1) return 6
 		return 0
 	},
 	texturePath: '../../node_modules/painterly-textures/textures/',
   chunkSize: 16,
-  chunkDistance: 1,
+  chunkDistance: 0,
 })
 game.gravity = [0, -0.98, 0]
 
 var Physics = require('../../')
 var physi = window.physi = Physics(game)
 
-var groundShape = new physi.CANNON.Plane();
+var groundShape = new physi.CANNON.Plane()//new physi.CANNON.Vec3(-1,0,0));
 var groundBody = new physi.CANNON.RigidBody(0, groundShape);
 groundBody.quaternion.setFromAxisAngle(new physi.CANNON.Vec3(-1,0,0),Math.PI/2);
 groundBody.position.set(0,-5,0);
@@ -51,16 +51,16 @@ function launch() {
   var CANNON = physi.CANNON
   // Box
   var boxShape = new CANNON.Box(new CANNON.Vec3(0.5,5,0.5));
-  var b1 = new CANNON.RigidBody(5, boxShape);
+  var b1 = new CANNON.RigidBody(1000, boxShape);
 
   var position = game.camera.position.clone()
   b1.position.set(position.x, position.y, position.z);
-  b1.velocity.set(0,0.5,0);
+  //b1.velocity.set(0,0.5,0);
   b1.angularVelocity.set(Math.random() * Math.random(),
                          Math.random() * Math.random(),
                          Math.random() *  Math.random())
-  b1.linearDamping=0.01;
-  b1.angularDamping=0.01;
+  b1.linearDamping=0.1;
+  b1.angularDamping=0.1;
 
   //b1.allowSleep = false;
 

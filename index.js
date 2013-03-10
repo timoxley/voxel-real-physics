@@ -37,10 +37,10 @@ Physics.prototype.createPhysicsEntities = function createPhysicsEntities(positio
   }
 
   merge.all(function(x, y, z) {
-    return game.getBlock([x, y, z]) === 1
+    return game.getBlock([x, y, z]) === 3
   }, startPos, endPos, function(result) {
     merge.voxelsIn(result).forEach(function(pos) {
-      game.setBlock([pos.x, pos.y, pos.z], 2)
+      game.setBlock([pos.x, pos.y, pos.z], 1)
     })
 
     var boxShape = new CANNON.Box(new CANNON.Vec3(result.width / 2, result.height / 2, result.depth / 2))

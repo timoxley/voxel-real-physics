@@ -8,7 +8,7 @@ Game.prototype.initializeControls = Game.prototype.hookupControls = function() {
 var game = new Game({
 	generate: function(x, y, z) {
     var val = y + 3 * Math.sin(z / 4)
-    if (val < -1 && val > -5) return 1
+    if (val < -1 && val > -5) return 3
 		return 0
 	},
 	texturePath: '../../node_modules/painterly-textures/textures/',
@@ -52,23 +52,25 @@ function launch() {
 
   var position = game.camera.position.clone()
   b1.position.set(position.x, position.y, position.z);
+  var direction = game.cameraVector()
+  b1.velocity.set(direction[0] * 5, direction[1] * 5, direction[2] * 5)
   b1.angularVelocity.set(Math.random() * Math.random(),
                          Math.random() * Math.random(),
                          Math.random() *  Math.random())
   b1.linearDamping=0.1;
   b1.angularDamping=0.1;
 
-  var mesh = createBox() //physi.shape2mesh(boxShape, game.materials.get('brick'))
+  var mesh = createBox()
   mesh.position = position.clone()
   game.scene.add(mesh);
 
   mesh.position = position.clone()
   game.scene.add(mesh);
 
-  setTimeout(function() {
-    console.log('add item to world:', b1)
-    physi.add(mesh, b1)
-  }, 4000)
+  //setTimeout(function() {
+    //console.log('add item to world:', b1)
+  physi.add(mesh, b1)
+  //}, 4000)
 }
 window.meshes = []
 

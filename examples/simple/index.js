@@ -37,7 +37,7 @@ function createBox() {
     m.map.repeat.set(1, 5)
   })
   var mesh = new game.THREE.Mesh(
-    new game.THREE.CubeGeometry(1,10,1),
+    new game.THREE.SphereGeometry(0.5),
     new game.THREE.MeshFaceMaterial(material)
   )
   mesh.useQuaternion = true;
@@ -47,7 +47,7 @@ function createBox() {
 function launch() {
   var CANNON = physi.CANNON
 
-  var boxShape = new CANNON.Box(new CANNON.Vec3(0.5,5,0.5));
+  var boxShape = new CANNON.Sphere(0.5);
   var b1 = new CANNON.RigidBody(1000, boxShape);
 
   var position = game.camera.position.clone()

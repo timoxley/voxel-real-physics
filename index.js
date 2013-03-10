@@ -74,7 +74,7 @@ function createWorld(opts) {
   if (opts.gravity) world.gravity = opts.gravity
   world.broadphase = new CANNON.NaiveBroadphase();
   var solver = new CANNON.GSSolver();
-  solver.iterations = 5;
+  solver.iterations = 7;
   world.defaultContactMaterial.contactEquationRegularizationTime = 0.55;
   solver.tolerance = 0.1;
   world.solver = new CANNON.SplitSolver(solver);
@@ -84,8 +84,9 @@ function createWorld(opts) {
 
   world.defaultContactMaterial.friction = 0.7
   world.defaultContactMaterial.restitution = 0.0
-  world.defaultContactMaterial.contactEquationStiffness = 1e7;
-  world.defaultContactMaterial.contactEquationRegularizationTime = 0.5;
+  world.defaultContactMaterial.contactEquationStiffness = 1e9;
+  world.defaultContactMaterial.contactEquationRegularizationTime = 4;
+  world.broadphase.useBoundingBoxes = true;
   world.allowSleep = false;
   return world
 }

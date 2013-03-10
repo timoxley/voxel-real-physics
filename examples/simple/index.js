@@ -51,12 +51,12 @@ function launch() {
   var b1 = new CANNON.RigidBody(1000, boxShape);
 
   var position = game.camera.position.clone()
-  b1.position.set(position.x, position.y, position.z);
+  b1.position.set(position.x, position.y - 1, position.z);
   var direction = game.cameraVector()
   b1.velocity.set(direction[0] * 5, direction[1] * 5, direction[2] * 5)
-  b1.angularVelocity.set(Math.random() * Math.random(),
-                         Math.random() * Math.random(),
-                         Math.random() *  Math.random())
+  b1.angularVelocity.set(Math.random(),
+                         Math.random(),
+                         Math.random())
   b1.linearDamping=0.1;
   b1.angularDamping=0.1;
 

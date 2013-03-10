@@ -202,12 +202,12 @@ function launch() {
   var b1 = new CANNON.RigidBody(1000, boxShape);
 
   var position = game.camera.position.clone()
-  b1.position.set(position.x, position.y, position.z);
+  b1.position.set(position.x, position.y - 1, position.z);
   var direction = game.cameraVector()
   b1.velocity.set(direction[0] * 5, direction[1] * 5, direction[2] * 5)
-  b1.angularVelocity.set(Math.random() * Math.random(),
-                         Math.random() * Math.random(),
-                         Math.random() *  Math.random())
+  b1.angularVelocity.set(Math.random(),
+                         Math.random(),
+                         Math.random())
   b1.linearDamping=0.1;
   b1.angularDamping=0.1;
 
@@ -7802,7 +7802,7 @@ Game.prototype.destroy = function() {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/index.js","/../../node_modules/voxel-engine")
-},{"path":9,"events":10,"./lib/stats":11,"./lib/detector":12,"voxel":13,"voxel-mesh":14,"voxel-chunks":15,"voxel-raycast":16,"voxel-control":17,"voxel-view":18,"three":19,"inherits":20,"interact":21,"raf":22,"collide-3d-tilemap":23,"aabb-3d":24,"gl-matrix":25,"spatial-events":26,"kb-controls":27,"voxel-physical":28,"pin-it":29,"voxel-texture":30,"voxel-region-change":31,"__browserify_process":1}],8:[function(require,module,exports){(function(process,global,__filename,__dirname){exports = module.exports = Memoizer;
+},{"path":9,"events":10,"./lib/stats":11,"./lib/detector":12,"voxel":13,"voxel-mesh":14,"voxel-chunks":15,"voxel-raycast":16,"voxel-control":17,"voxel-view":18,"three":19,"inherits":20,"interact":21,"raf":22,"collide-3d-tilemap":23,"gl-matrix":24,"aabb-3d":25,"spatial-events":26,"kb-controls":27,"voxel-physical":28,"pin-it":29,"voxel-texture":30,"voxel-region-change":31,"__browserify_process":1}],8:[function(require,module,exports){(function(process,global,__filename,__dirname){exports = module.exports = Memoizer;
 var EE = require('events').EventEmitter;
 var Treelib = require('treelib');
 var textual = require('textual');
@@ -8482,142 +8482,6 @@ function inherits (c, p, proto) {
 //new Child
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/inherits/inherits.js","/../../node_modules/voxel-engine/node_modules/inherits")
-},{"__browserify_process":1}],22:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = raf
-
-var EE = require('events').EventEmitter
-  , global = typeof window === 'undefined' ? this : window
-
-var _raf =
-  global.requestAnimationFrame ||
-  global.webkitRequestAnimationFrame ||
-  global.mozRequestAnimationFrame ||
-  global.msRequestAnimationFrame ||
-  global.oRequestAnimationFrame ||
-  (global.setImmediate ? function(fn, el) {
-    setImmediate(fn)
-  } :
-  function(fn, el) {
-    setTimeout(fn, 0)
-  })
-
-function raf(el) {
-  var now = raf.now()
-    , ee = new EE
-
-  ee.pause = function() { ee.paused = true }
-  ee.resume = function() { ee.paused = false }
-
-  _raf(iter, el)
-
-  return ee
-
-  function iter(timestamp) {
-    var _now = raf.now()
-      , dt = _now - now
-    
-    now = _now
-
-    ee.emit('data', dt)
-
-    if(!ee.paused) {
-      _raf(iter, el)
-    }
-  }
-}
-
-raf.polyfill = _raf
-raf.now = function() { return Date.now() }
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/raf/index.js","/../../node_modules/voxel-engine/node_modules/raf")
-},{"events":10,"__browserify_process":1}],23:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = function(field, tilesize, dimensions, offset) {
-  dimensions = dimensions || [ 
-    Math.sqrt(field.length) >> 0
-  , Math.sqrt(field.length) >> 0
-  , Math.sqrt(field.length) >> 0
-  ] 
-
-  offset = offset || [
-    0
-  , 0
-  , 0
-  ]
-
-  field = typeof field === 'function' ? field : function(x, y, z) {
-    return this[x + y * dimensions[1] + (z * dimensions[1] * dimensions[2])]
-  }.bind(field) 
-
-  var coords
-
-  coords = [0, 0, 0]
-
-  return collide
-
-  function collide(box, vec, oncollision) {
-    if(vec[0] === 0 && vec[1] === 0 && vec[2] === 0) return
-
-    // collide x, then y
-    collideaxis(0)
-    collideaxis(1)
-    collideaxis(2)
-
-    function collideaxis(i_axis) {
-      var j_axis = (i_axis + 1) % 3
-        , k_axis = (i_axis + 2) % 3 
-        , posi = vec[i_axis] > 0
-        , leading = box[posi ? 'max' : 'base'][i_axis] 
-        , dir = posi ? 1 : -1
-        , i_start = Math.floor(leading / tilesize)
-        , i_end = (Math.floor((leading + vec[i_axis]) / tilesize)) + dir
-        , j_start = Math.floor(box.base[j_axis] / tilesize)
-        , j_end = Math.ceil(box.max[j_axis] / tilesize)
-        , k_start = Math.floor(box.base[k_axis] / tilesize) 
-        , k_end = Math.ceil(box.max[k_axis] / tilesize)
-        , done = false
-        , edge_vector
-        , edge
-        , tile
-
-      // loop from the current tile coord to the dest tile coord
-      //    -> loop on the opposite axis to get the other candidates
-      //      -> if `oncollision` return `true` we've hit something and
-      //         should break out of the loops entirely.
-      //         NB: `oncollision` is where the client gets the chance
-      //         to modify the `vec` in-flight.
-      // once we're done translate the box to the vec results
-
-      var step = 0
-      for(var i = i_start; !done && i !== i_end; ++step, i += dir) {
-        if(i < offset[i_axis] || i >= dimensions[i_axis]) continue
-        for(var j = j_start; !done && j !== j_end; ++j) {
-          if(j < offset[j_axis] || j >= dimensions[j_axis]) continue
-          for(var k = k_start; k !== k_end; ++k) {
-            if(k < offset[k_axis] || k >= dimensions[k_axis]) continue
-            coords[i_axis] = i
-            coords[j_axis] = j
-            coords[k_axis] = k
-            tile = field.apply(field, coords)
-
-            if(tile === undefined) continue
-
-            edge = dir > 0 ? i * tilesize : (i + 1) * tilesize
-            edge_vector = edge - leading
-
-            if(oncollision(i_axis, tile, coords, dir, edge_vector)) {
-              done = true
-              break
-            }
-          } 
-        }
-      }
-
-      coords[0] = coords[1] = coords[2] = 0
-      coords[i_axis] = vec[i_axis]
-      box.translate(coords)
-    }
-  }  
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/collide-3d-tilemap/index.js","/../../node_modules/voxel-engine/node_modules/collide-3d-tilemap")
 },{"__browserify_process":1}],19:[function(require,module,exports){(function(process,global,__filename,__dirname){
 var window = window || {};
 var self = self || {};
@@ -45108,89 +44972,143 @@ if (typeof exports !== 'undefined') {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/three/three.js","/../../node_modules/voxel-engine/node_modules/three")
-},{"__browserify_process":1}],29:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = pin
+},{"__browserify_process":1}],22:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = raf
 
-var pins = {}
-  , stack_holder = {}
-  , pin_holder
+var EE = require('events').EventEmitter
+  , global = typeof window === 'undefined' ? this : window
 
-function make_pin_for(name, obj) {
-  var container = document.createElement('div')
-    , header = document.createElement('h4')
-    , body = document.createElement('pre')
+var _raf =
+  global.requestAnimationFrame ||
+  global.webkitRequestAnimationFrame ||
+  global.mozRequestAnimationFrame ||
+  global.msRequestAnimationFrame ||
+  global.oRequestAnimationFrame ||
+  (global.setImmediate ? function(fn, el) {
+    setImmediate(fn)
+  } :
+  function(fn, el) {
+    setTimeout(fn, 0)
+  })
 
-  container.style.background = 'white'
-  container.style.marginBottom = '4px'
-  container.appendChild(header)
-  container.appendChild(body)
-  header.textContents = header.innerText = obj && obj.repr ? obj.repr() : name
-  body.style.padding = '8px'
+function raf(el) {
+  var now = raf.now()
+    , ee = new EE
 
+  ee.pause = function() { ee.paused = true }
+  ee.resume = function() { ee.paused = false }
 
-  if(!pin_holder) {
-    pin_holder = document.createElement('div')
-    pin_holder.style.position = 'absolute'
-    pin_holder.style.top =
-    pin_holder.style.right = '4px'
+  _raf(iter, el)
 
-    document.body.appendChild(pin_holder)
+  return ee
+
+  function iter(timestamp) {
+    var _now = raf.now()
+      , dt = _now - now
+    
+    now = _now
+
+    ee.emit('data', dt)
+
+    if(!ee.paused) {
+      _raf(iter, el)
+    }
   }
-
-  pin_holder.appendChild(container)
-
-  return (pins[name] = pins[name] || []).push({body: body, last: -Infinity, for_object: obj}), pins[name]
 }
 
-function update_pin(item, into, retain, depth) {
-  if(!retain) into.innerHTML = ''
-  if(depth > 1) return
-  depth = depth || 0
+raf.polyfill = _raf
+raf.now = function() { return Date.now() }
 
-  switch(typeof item) {
-    case 'number': into.innerText += item.toFixed(3); break
-    case 'string': into.innerText += '"'+item+'"'; break
-    case 'undefined':
-    case 'object':
-      if(item) {
-        for(var key in item) if(item.hasOwnProperty(key)) {
-          into.innerText += key +':'
-          update_pin(item[key], into, true, depth+1)
-          into.innerText += '\n'
-        } 
-        break
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/raf/index.js","/../../node_modules/voxel-engine/node_modules/raf")
+},{"events":10,"__browserify_process":1}],23:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = function(field, tilesize, dimensions, offset) {
+  dimensions = dimensions || [ 
+    Math.sqrt(field.length) >> 0
+  , Math.sqrt(field.length) >> 0
+  , Math.sqrt(field.length) >> 0
+  ] 
+
+  offset = offset || [
+    0
+  , 0
+  , 0
+  ]
+
+  field = typeof field === 'function' ? field : function(x, y, z) {
+    return this[x + y * dimensions[1] + (z * dimensions[1] * dimensions[2])]
+  }.bind(field) 
+
+  var coords
+
+  coords = [0, 0, 0]
+
+  return collide
+
+  function collide(box, vec, oncollision) {
+    if(vec[0] === 0 && vec[1] === 0 && vec[2] === 0) return
+
+    // collide x, then y
+    collideaxis(0)
+    collideaxis(1)
+    collideaxis(2)
+
+    function collideaxis(i_axis) {
+      var j_axis = (i_axis + 1) % 3
+        , k_axis = (i_axis + 2) % 3 
+        , posi = vec[i_axis] > 0
+        , leading = box[posi ? 'max' : 'base'][i_axis] 
+        , dir = posi ? 1 : -1
+        , i_start = Math.floor(leading / tilesize)
+        , i_end = (Math.floor((leading + vec[i_axis]) / tilesize)) + dir
+        , j_start = Math.floor(box.base[j_axis] / tilesize)
+        , j_end = Math.ceil(box.max[j_axis] / tilesize)
+        , k_start = Math.floor(box.base[k_axis] / tilesize) 
+        , k_end = Math.ceil(box.max[k_axis] / tilesize)
+        , done = false
+        , edge_vector
+        , edge
+        , tile
+
+      // loop from the current tile coord to the dest tile coord
+      //    -> loop on the opposite axis to get the other candidates
+      //      -> if `oncollision` return `true` we've hit something and
+      //         should break out of the loops entirely.
+      //         NB: `oncollision` is where the client gets the chance
+      //         to modify the `vec` in-flight.
+      // once we're done translate the box to the vec results
+
+      var step = 0
+      for(var i = i_start; !done && i !== i_end; ++step, i += dir) {
+        if(i < offset[i_axis] || i >= dimensions[i_axis]) continue
+        for(var j = j_start; !done && j !== j_end; ++j) {
+          if(j < offset[j_axis] || j >= dimensions[j_axis]) continue
+          for(var k = k_start; k !== k_end; ++k) {
+            if(k < offset[k_axis] || k >= dimensions[k_axis]) continue
+            coords[i_axis] = i
+            coords[j_axis] = j
+            coords[k_axis] = k
+            tile = field.apply(field, coords)
+
+            if(tile === undefined) continue
+
+            edge = dir > 0 ? i * tilesize : (i + 1) * tilesize
+            edge_vector = edge - leading
+
+            if(oncollision(i_axis, tile, coords, dir, edge_vector)) {
+              done = true
+              break
+            }
+          } 
+        }
       }
-    case 'boolean': into.innerText += ''+item; break
+
+      coords[0] = coords[1] = coords[2] = 0
+      coords[i_axis] = vec[i_axis]
+      box.translate(coords)
+    }
   }  
 }
 
-function pin(item, every, obj, name) {
-  if(!name) Error.captureStackTrace(stack_holder)
-  var location = name || stack_holder.stack.split('\n').slice(2)[0].replace(/^\s+at /g, '')
-    , target = pins[location] || make_pin_for(location, obj)
-    , now = Date.now()
-    , every = every || 0
-
-  if(arguments.length < 3) target = target[0]
-  else {
-    for(var i = 0, len = target.length; i < len; ++i) {
-    if(target[i].for_object === obj) {
-      target = target[i]
-      break   
-    }
-  }
-    if(i === len) {
-      pins[location].push(target = make_pin_for(location, obj))
-    }
-  }
-
-  if(now - target.last > every) {
-    update_pin(item, target.body)
-    target.last = now 
-  }
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/pin-it/index.js","/../../node_modules/voxel-engine/node_modules/pin-it")
-},{"__browserify_process":1}],25:[function(require,module,exports){(function(process,global,__filename,__dirname){/**
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/collide-3d-tilemap/index.js","/../../node_modules/voxel-engine/node_modules/collide-3d-tilemap")
+},{"__browserify_process":1}],24:[function(require,module,exports){(function(process,global,__filename,__dirname){/**
  * @fileoverview gl-matrix - High performance matrix and vector operations
  * @author Brandon Jones
  * @author Colin MacKenzie IV
@@ -48263,6 +48181,88 @@ if(typeof(exports) !== 'undefined') {
 })();
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/gl-matrix/dist/gl-matrix.js","/../../node_modules/voxel-engine/node_modules/gl-matrix/dist")
+},{"__browserify_process":1}],29:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = pin
+
+var pins = {}
+  , stack_holder = {}
+  , pin_holder
+
+function make_pin_for(name, obj) {
+  var container = document.createElement('div')
+    , header = document.createElement('h4')
+    , body = document.createElement('pre')
+
+  container.style.background = 'white'
+  container.style.marginBottom = '4px'
+  container.appendChild(header)
+  container.appendChild(body)
+  header.textContents = header.innerText = obj && obj.repr ? obj.repr() : name
+  body.style.padding = '8px'
+
+
+  if(!pin_holder) {
+    pin_holder = document.createElement('div')
+    pin_holder.style.position = 'absolute'
+    pin_holder.style.top =
+    pin_holder.style.right = '4px'
+
+    document.body.appendChild(pin_holder)
+  }
+
+  pin_holder.appendChild(container)
+
+  return (pins[name] = pins[name] || []).push({body: body, last: -Infinity, for_object: obj}), pins[name]
+}
+
+function update_pin(item, into, retain, depth) {
+  if(!retain) into.innerHTML = ''
+  if(depth > 1) return
+  depth = depth || 0
+
+  switch(typeof item) {
+    case 'number': into.innerText += item.toFixed(3); break
+    case 'string': into.innerText += '"'+item+'"'; break
+    case 'undefined':
+    case 'object':
+      if(item) {
+        for(var key in item) if(item.hasOwnProperty(key)) {
+          into.innerText += key +':'
+          update_pin(item[key], into, true, depth+1)
+          into.innerText += '\n'
+        } 
+        break
+      }
+    case 'boolean': into.innerText += ''+item; break
+  }  
+}
+
+function pin(item, every, obj, name) {
+  if(!name) Error.captureStackTrace(stack_holder)
+  var location = name || stack_holder.stack.split('\n').slice(2)[0].replace(/^\s+at /g, '')
+    , target = pins[location] || make_pin_for(location, obj)
+    , now = Date.now()
+    , every = every || 0
+
+  if(arguments.length < 3) target = target[0]
+  else {
+    for(var i = 0, len = target.length; i < len; ++i) {
+    if(target[i].for_object === obj) {
+      target = target[i]
+      break   
+    }
+  }
+    if(i === len) {
+      pins[location].push(target = make_pin_for(location, obj))
+    }
+  }
+
+  if(now - target.last > every) {
+    update_pin(item, target.body)
+    target.last = now 
+  }
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/pin-it/index.js","/../../node_modules/voxel-engine/node_modules/pin-it")
 },{"__browserify_process":1}],32:[function(require,module,exports){(function(process,global,__filename,__dirname){// incidentally, does shrubs too :-)
 var Treelib = function(tree) {
 	var self = {};
@@ -50423,7 +50423,7 @@ module.exports.transparent = function(image) {
   return !opaque(image)
 };
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-texture/node_modules/opaque/index.js","/../../node_modules/voxel-engine/node_modules/voxel-texture/node_modules/opaque")
-},{"__browserify_process":1}],24:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = AABB
+},{"__browserify_process":1}],25:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = AABB
 
 var vec3 = require('gl-matrix').vec3
 
@@ -50522,7 +50522,7 @@ proto.union = function(aabb) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/aabb-3d/index.js","/../../node_modules/voxel-engine/node_modules/aabb-3d")
-},{"gl-matrix":25,"__browserify_process":1}],26:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = SpatialEventEmitter
+},{"gl-matrix":24,"__browserify_process":1}],26:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = SpatialEventEmitter
 
 var slice = [].slice
   , Tree = require('./tree')
@@ -50654,7 +50654,7 @@ function finite(bbox) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/spatial-events/index.js","/../../node_modules/voxel-engine/node_modules/spatial-events")
-},{"./tree":50,"aabb-3d":24,"__browserify_process":1}],47:[function(require,module,exports){(function(process,global,__filename,__dirname){var EventEmitter = require('events').EventEmitter;
+},{"./tree":50,"aabb-3d":25,"__browserify_process":1}],47:[function(require,module,exports){(function(process,global,__filename,__dirname){var EventEmitter = require('events').EventEmitter;
 
 module.exports = function (elem) {
     return new Ever(elem);
@@ -50976,103 +50976,7 @@ proto.atRestZ = function() {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-physical/index.js","/../../node_modules/voxel-engine/node_modules/voxel-physical")
-},{"aabb-3d":24,"three":19,"__browserify_process":1}],43:[function(require,module,exports){(function(process,global,__filename,__dirname){var chunker = require('./chunker')
-
-module.exports = function(opts) {
-  if (!opts.generateVoxelChunk) opts.generateVoxelChunk = function(low, high) {
-    return generate(low, high, module.exports.generator['Valley'])
-  }
-  return chunker(opts)
-}
-
-module.exports.meshers = {
-  culled: require('./meshers/culled').mesher,
-  greedy: require('./meshers/greedy').mesher,
-  monotone: require('./meshers/monotone').mesher,
-  stupid: require('./meshers/stupid').mesher
-}
-
-module.exports.Chunker = chunker.Chunker
-module.exports.geometry = {}
-module.exports.generator = {}
-module.exports.generate = generate
-
-// from https://github.com/mikolalysenko/mikolalysenko.github.com/blob/master/MinecraftMeshes2/js/testdata.js#L4
-function generate(l, h, f) {
-  var d = [ h[0]-l[0], h[1]-l[1], h[2]-l[2] ]
-  var v = new Int8Array(d[0]*d[1]*d[2])
-  var n = 0
-  for(var k=l[2]; k<h[2]; ++k)
-  for(var j=l[1]; j<h[1]; ++j)
-  for(var i=l[0]; i<h[0]; ++i, ++n) {
-    v[n] = f(i,j,k,n)
-  }
-  return {voxels:v, dims:d}
-}
-
-// shape and terrain generator functions
-module.exports.generator['Sphere'] = function(i,j,k) {
-  return i*i+j*j+k*k <= 16*16 ? 1 : 0
-}
-
-module.exports.generator['Noise'] = function(i,j,k) {
-  return Math.random() < 0.1 ? Math.random() * 0xffffff : 0;
-}
-
-module.exports.generator['Dense Noise'] = function(i,j,k) {
-  return Math.round(Math.random() * 0xffffff);
-}
-
-module.exports.generator['Checker'] = function(i,j,k) {
-  return !!((i+j+k)&1) ? (((i^j^k)&2) ? 1 : 0xffffff) : 0;
-}
-
-module.exports.generator['Hill'] = function(i,j,k) {
-  return j <= 16 * Math.exp(-(i*i + k*k) / 64) ? 1 : 0;
-}
-
-module.exports.generator['Valley'] = function(i,j,k) {
-  return j <= (i*i + k*k) * 31 / (32*32*2) + 1 ? 1 : 0;
-}
-
-module.exports.generator['Hilly Terrain'] = function(i,j,k) {
-  var h0 = 3.0 * Math.sin(Math.PI * i / 12.0 - Math.PI * k * 0.1) + 27;    
-  if(j > h0+1) {
-    return 0;
-  }
-  if(h0 <= j) {
-    return 1;
-  }
-  var h1 = 2.0 * Math.sin(Math.PI * i * 0.25 - Math.PI * k * 0.3) + 20;
-  if(h1 <= j) {
-    return 2;
-  }
-  if(2 < j) {
-    return Math.random() < 0.1 ? 0x222222 : 0xaaaaaa;
-  }
-  return 3;
-}
-
-module.exports.scale = function ( x, fromLow, fromHigh, toLow, toHigh ) {
-  return ( x - fromLow ) * ( toHigh - toLow ) / ( fromHigh - fromLow ) + toLow
-}
-
-// convenience function that uses the above functions to prebake some simple voxel geometries
-module.exports.generateExamples = function() {
-  return {
-    'Sphere': generate([-16,-16,-16], [16,16,16], module.exports.generator['Sphere']),
-    'Noise': generate([0,0,0], [16,16,16], module.exports.generator['Noise']),
-    'Dense Noise': generate([0,0,0], [16,16,16], module.exports.generator['Dense Noise']),
-    'Checker': generate([0,0,0], [8,8,8], module.exports.generator['Checker']),
-    'Hill': generate([-16, 0, -16], [16,16,16], module.exports.generator['Hill']),
-    'Valley': generate([0,0,0], [32,32,32], module.exports.generator['Valley']),
-    'Hilly Terrain': generate([0, 0, 0], [32,32,32], module.exports.generator['Hilly Terrain'])
-  }
-}
-
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/index.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel")
-},{"./chunker":53,"./meshers/culled":54,"./meshers/greedy":55,"./meshers/monotone":56,"./meshers/stupid":57,"__browserify_process":1}],30:[function(require,module,exports){(function(process,global,__filename,__dirname){var transparent = require('opaque').transparent;
+},{"aabb-3d":25,"three":19,"__browserify_process":1}],30:[function(require,module,exports){(function(process,global,__filename,__dirname){var transparent = require('opaque').transparent;
 
 function Texture(opts) {
   var self = this;
@@ -51288,7 +51192,103 @@ function defaults(obj) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-texture/index.js","/../../node_modules/voxel-engine/node_modules/voxel-texture")
-},{"opaque":49,"three":19,"__browserify_process":1}],31:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = coordinates
+},{"opaque":49,"three":19,"__browserify_process":1}],43:[function(require,module,exports){(function(process,global,__filename,__dirname){var chunker = require('./chunker')
+
+module.exports = function(opts) {
+  if (!opts.generateVoxelChunk) opts.generateVoxelChunk = function(low, high) {
+    return generate(low, high, module.exports.generator['Valley'])
+  }
+  return chunker(opts)
+}
+
+module.exports.meshers = {
+  culled: require('./meshers/culled').mesher,
+  greedy: require('./meshers/greedy').mesher,
+  monotone: require('./meshers/monotone').mesher,
+  stupid: require('./meshers/stupid').mesher
+}
+
+module.exports.Chunker = chunker.Chunker
+module.exports.geometry = {}
+module.exports.generator = {}
+module.exports.generate = generate
+
+// from https://github.com/mikolalysenko/mikolalysenko.github.com/blob/master/MinecraftMeshes2/js/testdata.js#L4
+function generate(l, h, f) {
+  var d = [ h[0]-l[0], h[1]-l[1], h[2]-l[2] ]
+  var v = new Int8Array(d[0]*d[1]*d[2])
+  var n = 0
+  for(var k=l[2]; k<h[2]; ++k)
+  for(var j=l[1]; j<h[1]; ++j)
+  for(var i=l[0]; i<h[0]; ++i, ++n) {
+    v[n] = f(i,j,k,n)
+  }
+  return {voxels:v, dims:d}
+}
+
+// shape and terrain generator functions
+module.exports.generator['Sphere'] = function(i,j,k) {
+  return i*i+j*j+k*k <= 16*16 ? 1 : 0
+}
+
+module.exports.generator['Noise'] = function(i,j,k) {
+  return Math.random() < 0.1 ? Math.random() * 0xffffff : 0;
+}
+
+module.exports.generator['Dense Noise'] = function(i,j,k) {
+  return Math.round(Math.random() * 0xffffff);
+}
+
+module.exports.generator['Checker'] = function(i,j,k) {
+  return !!((i+j+k)&1) ? (((i^j^k)&2) ? 1 : 0xffffff) : 0;
+}
+
+module.exports.generator['Hill'] = function(i,j,k) {
+  return j <= 16 * Math.exp(-(i*i + k*k) / 64) ? 1 : 0;
+}
+
+module.exports.generator['Valley'] = function(i,j,k) {
+  return j <= (i*i + k*k) * 31 / (32*32*2) + 1 ? 1 : 0;
+}
+
+module.exports.generator['Hilly Terrain'] = function(i,j,k) {
+  var h0 = 3.0 * Math.sin(Math.PI * i / 12.0 - Math.PI * k * 0.1) + 27;    
+  if(j > h0+1) {
+    return 0;
+  }
+  if(h0 <= j) {
+    return 1;
+  }
+  var h1 = 2.0 * Math.sin(Math.PI * i * 0.25 - Math.PI * k * 0.3) + 20;
+  if(h1 <= j) {
+    return 2;
+  }
+  if(2 < j) {
+    return Math.random() < 0.1 ? 0x222222 : 0xaaaaaa;
+  }
+  return 3;
+}
+
+module.exports.scale = function ( x, fromLow, fromHigh, toLow, toHigh ) {
+  return ( x - fromLow ) * ( toHigh - toLow ) / ( fromHigh - fromLow ) + toLow
+}
+
+// convenience function that uses the above functions to prebake some simple voxel geometries
+module.exports.generateExamples = function() {
+  return {
+    'Sphere': generate([-16,-16,-16], [16,16,16], module.exports.generator['Sphere']),
+    'Noise': generate([0,0,0], [16,16,16], module.exports.generator['Noise']),
+    'Dense Noise': generate([0,0,0], [16,16,16], module.exports.generator['Dense Noise']),
+    'Checker': generate([0,0,0], [8,8,8], module.exports.generator['Checker']),
+    'Hill': generate([-16, 0, -16], [16,16,16], module.exports.generator['Hill']),
+    'Valley': generate([0,0,0], [32,32,32], module.exports.generator['Valley']),
+    'Hilly Terrain': generate([0, 0, 0], [32,32,32], module.exports.generator['Hilly Terrain'])
+  }
+}
+
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/index.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel")
+},{"./chunker":53,"./meshers/culled":54,"./meshers/greedy":55,"./meshers/monotone":56,"./meshers/stupid":57,"__browserify_process":1}],31:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = coordinates
 
 var aabb = require('aabb-3d')
 var events = require('events')
@@ -51316,7 +51316,7 @@ function coordinates(spatial, box, regionWidth) {
   return emitter
 }
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-region-change/index.js","/../../node_modules/voxel-engine/node_modules/voxel-region-change")
-},{"events":10,"aabb-3d":24,"__browserify_process":1}],51:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports={
+},{"events":10,"aabb-3d":25,"__browserify_process":1}],51:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports={
   "initEvent" : [
     "type",
     "canBubble", 
@@ -51456,6 +51456,123 @@ if(exports) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers/culled.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers")
+},{"__browserify_process":1}],55:[function(require,module,exports){(function(process,global,__filename,__dirname){var GreedyMesh = (function() {
+//Cache buffer internally
+var mask = new Int32Array(4096);
+
+return function(volume, dims) {
+  var vertices = [], faces = []
+    , dimsX = dims[0]
+    , dimsY = dims[1]
+    , dimsXY = dimsX * dimsY;
+
+  //Sweep over 3-axes
+  for(var d=0; d<3; ++d) {
+    var i, j, k, l, w, W, h, n, c
+      , u = (d+1)%3
+      , v = (d+2)%3
+      , x = [0,0,0]
+      , q = [0,0,0]
+      , du = [0,0,0]
+      , dv = [0,0,0]
+      , dimsD = dims[d]
+      , dimsU = dims[u]
+      , dimsV = dims[v]
+      , qdimsX, qdimsXY
+      , xd
+
+    if (mask.length < dimsU * dimsV) {
+      mask = new Int32Array(dimsU * dimsV);
+    }
+
+    q[d] =  1;
+    x[d] = -1;
+
+    qdimsX  = dimsX  * q[1]
+    qdimsXY = dimsXY * q[2]
+
+    // Compute mask
+    while (x[d] < dimsD) {
+      xd = x[d]
+      n = 0;
+
+      for(x[v] = 0; x[v] < dimsV; ++x[v]) {
+        for(x[u] = 0; x[u] < dimsU; ++x[u], ++n) {
+          var a = xd >= 0      && volume[x[0]      + dimsX * x[1]          + dimsXY * x[2]          ]
+            , b = xd < dimsD-1 && volume[x[0]+q[0] + dimsX * x[1] + qdimsX + dimsXY * x[2] + qdimsXY]
+          if (a ? b : !b) {
+            mask[n] = 0; continue;
+          }
+          mask[n] = a ? a : -b;
+        }
+      }
+
+      ++x[d];
+
+      // Generate mesh for mask using lexicographic ordering
+      n = 0;
+      for (j=0; j < dimsV; ++j) {
+        for (i=0; i < dimsU; ) {
+          c = mask[n];
+          if (!c) {
+            i++;  n++; continue;
+          }
+
+          //Compute width
+          w = 1;
+          while (c === mask[n+w] && i+w < dimsU) w++;
+
+          //Compute height (this is slightly awkward)
+          for (h=1; j+h < dimsV; ++h) {
+            k = 0;
+            while (k < w && c === mask[n+k+h*dimsU]) k++
+            if (k < w) break;
+          }
+
+          // Add quad
+          // The du/dv arrays are reused/reset
+          // for each iteration.
+          du[d] = 0; dv[d] = 0;
+          x[u]  = i;  x[v] = j;
+
+          if (c > 0) {
+            dv[v] = h; dv[u] = 0;
+            du[u] = w; du[v] = 0;
+          } else {
+            c = -c;
+            du[v] = h; du[u] = 0;
+            dv[u] = w; dv[v] = 0;
+          }
+          var vertex_count = vertices.length;
+          vertices.push([x[0],             x[1],             x[2]            ]);
+          vertices.push([x[0]+du[0],       x[1]+du[1],       x[2]+du[2]      ]);
+          vertices.push([x[0]+du[0]+dv[0], x[1]+du[1]+dv[1], x[2]+du[2]+dv[2]]);
+          vertices.push([x[0]      +dv[0], x[1]      +dv[1], x[2]      +dv[2]]);
+          faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, c]);
+
+          //Zero-out mask
+          W = n + w;
+          for(l=0; l<h; ++l) {
+            for(k=n; k<W; ++k) {
+              mask[k+l*dimsU] = 0;
+            }
+          }
+
+          //Increment counters and continue
+          i += w; n += w;
+        }
+      }
+    }
+  }
+  return { vertices:vertices, faces:faces };
+}
+})();
+
+if(exports) {
+  exports.mesher = GreedyMesh;
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers/greedy.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers")
 },{"__browserify_process":1}],56:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict";
 
 var MonotoneMesh = (function(){
@@ -51709,123 +51826,6 @@ if(exports) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers/monotone.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers")
-},{"__browserify_process":1}],55:[function(require,module,exports){(function(process,global,__filename,__dirname){var GreedyMesh = (function() {
-//Cache buffer internally
-var mask = new Int32Array(4096);
-
-return function(volume, dims) {
-  var vertices = [], faces = []
-    , dimsX = dims[0]
-    , dimsY = dims[1]
-    , dimsXY = dimsX * dimsY;
-
-  //Sweep over 3-axes
-  for(var d=0; d<3; ++d) {
-    var i, j, k, l, w, W, h, n, c
-      , u = (d+1)%3
-      , v = (d+2)%3
-      , x = [0,0,0]
-      , q = [0,0,0]
-      , du = [0,0,0]
-      , dv = [0,0,0]
-      , dimsD = dims[d]
-      , dimsU = dims[u]
-      , dimsV = dims[v]
-      , qdimsX, qdimsXY
-      , xd
-
-    if (mask.length < dimsU * dimsV) {
-      mask = new Int32Array(dimsU * dimsV);
-    }
-
-    q[d] =  1;
-    x[d] = -1;
-
-    qdimsX  = dimsX  * q[1]
-    qdimsXY = dimsXY * q[2]
-
-    // Compute mask
-    while (x[d] < dimsD) {
-      xd = x[d]
-      n = 0;
-
-      for(x[v] = 0; x[v] < dimsV; ++x[v]) {
-        for(x[u] = 0; x[u] < dimsU; ++x[u], ++n) {
-          var a = xd >= 0      && volume[x[0]      + dimsX * x[1]          + dimsXY * x[2]          ]
-            , b = xd < dimsD-1 && volume[x[0]+q[0] + dimsX * x[1] + qdimsX + dimsXY * x[2] + qdimsXY]
-          if (a ? b : !b) {
-            mask[n] = 0; continue;
-          }
-          mask[n] = a ? a : -b;
-        }
-      }
-
-      ++x[d];
-
-      // Generate mesh for mask using lexicographic ordering
-      n = 0;
-      for (j=0; j < dimsV; ++j) {
-        for (i=0; i < dimsU; ) {
-          c = mask[n];
-          if (!c) {
-            i++;  n++; continue;
-          }
-
-          //Compute width
-          w = 1;
-          while (c === mask[n+w] && i+w < dimsU) w++;
-
-          //Compute height (this is slightly awkward)
-          for (h=1; j+h < dimsV; ++h) {
-            k = 0;
-            while (k < w && c === mask[n+k+h*dimsU]) k++
-            if (k < w) break;
-          }
-
-          // Add quad
-          // The du/dv arrays are reused/reset
-          // for each iteration.
-          du[d] = 0; dv[d] = 0;
-          x[u]  = i;  x[v] = j;
-
-          if (c > 0) {
-            dv[v] = h; dv[u] = 0;
-            du[u] = w; du[v] = 0;
-          } else {
-            c = -c;
-            du[v] = h; du[u] = 0;
-            dv[u] = w; dv[v] = 0;
-          }
-          var vertex_count = vertices.length;
-          vertices.push([x[0],             x[1],             x[2]            ]);
-          vertices.push([x[0]+du[0],       x[1]+du[1],       x[2]+du[2]      ]);
-          vertices.push([x[0]+du[0]+dv[0], x[1]+du[1]+dv[1], x[2]+du[2]+dv[2]]);
-          vertices.push([x[0]      +dv[0], x[1]      +dv[1], x[2]      +dv[2]]);
-          faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, c]);
-
-          //Zero-out mask
-          W = n + w;
-          for(l=0; l<h; ++l) {
-            for(k=n; k<W; ++k) {
-              mask[k+l*dimsU] = 0;
-            }
-          }
-
-          //Increment counters and continue
-          i += w; n += w;
-        }
-      }
-    }
-  }
-  return { vertices:vertices, faces:faces };
-}
-})();
-
-if(exports) {
-  exports.mesher = GreedyMesh;
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers/greedy.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers")
 },{"__browserify_process":1}],57:[function(require,module,exports){(function(process,global,__filename,__dirname){//The stupidest possible way to generate a Minecraft mesh (I think)
 function StupidMesh(volume, dims) {
   var vertices = [], faces = [], x = [0,0,0], n = 0;
@@ -52125,7 +52125,7 @@ proto.send = function(event, bbox, args) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/spatial-events/tree.js","/../../node_modules/voxel-engine/node_modules/spatial-events")
-},{"aabb-3d":24,"__browserify_process":1}],45:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = dragstream
+},{"aabb-3d":25,"__browserify_process":1}],45:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = dragstream
 
 var Stream = require('stream')
   , read = require('domnode-dom').createReadStream
@@ -52193,7 +52193,7 @@ function dragstream(el) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream")
-},{"stream":34,"domnode-dom":58,"through":59,"__browserify_process":1}],42:[function(require,module,exports){(function(process,global,__filename,__dirname){var voxelMesh = require('voxel-mesh');
+},{"stream":34,"through":58,"domnode-dom":59,"__browserify_process":1}],42:[function(require,module,exports){(function(process,global,__filename,__dirname){var voxelMesh = require('voxel-mesh');
 var voxel = require('voxel');
 
 var EventEmitter = require('events').EventEmitter;
@@ -52314,7 +52314,7 @@ ChunkMatrix.prototype._update = function (ci) {
 };
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/lib/chunk_matrix.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/lib")
-},{"events":10,"./indexer":41,"voxel":43,"voxel-mesh":14,"inherits":20,"__browserify_process":1}],59:[function(require,module,exports){(function(process,global,__filename,__dirname){var Stream = require('stream')
+},{"events":10,"./indexer":41,"voxel":43,"voxel-mesh":14,"inherits":20,"__browserify_process":1}],58:[function(require,module,exports){(function(process,global,__filename,__dirname){var Stream = require('stream')
 
 // through
 //
@@ -52414,7 +52414,7 @@ function through (write, end) {
 
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/through/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/through")
-},{"stream":34,"__browserify_process":1}],58:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = require('./lib/index')
+},{"stream":34,"__browserify_process":1}],59:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = require('./lib/index')
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom")
 },{"./lib/index":60,"__browserify_process":1}],60:[function(require,module,exports){(function(process,global,__filename,__dirname){var WriteStream = require('./writable')
@@ -52455,115 +52455,7 @@ module.exports = DOMStream
 
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib")
-},{"./writable":61,"./readable":62,"__browserify_process":1}],53:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events')
-var inherits = require('inherits')
-
-module.exports = function(opts) {
-  return new Chunker(opts)
-}
-
-module.exports.Chunker = Chunker
-
-function Chunker(opts) {
-  this.distance = opts.chunkDistance || 2
-  this.chunkSize = opts.chunkSize || 32
-  this.cubeSize = opts.cubeSize || 25
-  this.generateVoxelChunk = opts.generateVoxelChunk
-  this.chunks = {}
-  this.meshes = {}
-}
-
-inherits(Chunker, events.EventEmitter)
-
-Chunker.prototype.nearbyChunks = function(position, distance) {
-  var current = this.chunkAtPosition(position)
-  var x = current[0]
-  var y = current[1]
-  var z = current[2]
-  var dist = distance || this.distance
-  var nearby = []
-  for (var cx = (x - dist); cx !== (x + dist); ++cx) {
-    for (var cy = (y - dist); cy !== (y + dist); ++cy) {
-      for (var cz = (z - dist); cz !== (z + dist); ++cz) {
-        nearby.push([cx, cy, cz])
-      }
-    }
-  }
-  return nearby
-}
-
-Chunker.prototype.requestMissingChunks = function(position) {
-  var self = this
-  this.nearbyChunks(position).map(function(chunk) {
-    if (!self.chunks[chunk.join('|')]) {
-      self.emit('missingChunk', chunk)
-    }
-  })
-}
-
-Chunker.prototype.getBounds = function(x, y, z) {
-  var size = this.chunkSize
-  var low = [x * size, y * size, z * size]
-  var high = [low[0] + size, low[1] + size, low[2] + size]
-  return [low, high]
-}
-
-Chunker.prototype.generateChunk = function(x, y, z) {
-  var self = this
-  var bounds = this.getBounds(x, y, z)
-  var chunk = this.generateVoxelChunk(bounds[0], bounds[1], x, y, z)
-  var position = [x, y, z]
-  chunk.position = position
-  this.chunks[position.join('|')] = chunk
-  return chunk
-}
-
-Chunker.prototype.chunkAtPosition = function(position) {
-  var chunkSize = this.chunkSize
-  var cubeSize = this.cubeSize
-  var cx = position.x / cubeSize / chunkSize
-  var cy = position.y / cubeSize / chunkSize
-  var cz = position.z / cubeSize / chunkSize
-  var chunkPos = [Math.floor(cx), Math.floor(cy), Math.floor(cz)]
-  return chunkPos
-};
-
-Chunker.prototype.voxelIndex = function(voxelVector) {
-  var size = this.chunkSize
-  var vidx = voxelVector.x + voxelVector.y*size + voxelVector.z*size*size
-  return vidx
-}
-
-Chunker.prototype.voxelIndexFromPosition = function(pos) {
-  var v = this.voxelVector(pos)
-  return this.voxelIndex(v)
-}
-
-Chunker.prototype.voxelAtPosition = function(pos, val) {
-  var ckey = this.chunkAtPosition(pos).join('|')
-  var chunk = this.chunks[ckey]
-  if (!chunk) return false
-  var vector = this.voxelVector(pos)
-  var vidx = this.voxelIndex(vector)
-  if (!vidx && vidx !== 0) return false
-  if (typeof val !== 'undefined') {
-    chunk.voxels[vidx] = val
-  }
-  var v = chunk.voxels[vidx]
-  return v
-}
-
-Chunker.prototype.voxelVector = function(pos) {
-  var size = this.chunkSize
-  var cubeSize = this.cubeSize
-  var vx = (size + Math.floor(pos.x / cubeSize) % size) % size
-  var vy = (size + Math.floor(pos.y / cubeSize) % size) % size
-  var vz = (size + Math.floor(pos.z / cubeSize) % size) % size
-  return {x: Math.abs(vx), y: Math.abs(vy), z: Math.abs(vz)}
-};
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/chunker.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel")
-},{"events":10,"inherits":20,"__browserify_process":1}],61:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = DOMStream
+},{"./writable":61,"./readable":62,"__browserify_process":1}],61:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = DOMStream
 
 var Stream = require('stream').Stream
 
@@ -52750,4 +52642,112 @@ function valueFromElement(el) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib/readable.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib")
-},{"stream":34,"__browserify_process":1}]},{},[3]);
+},{"stream":34,"__browserify_process":1}],53:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events')
+var inherits = require('inherits')
+
+module.exports = function(opts) {
+  return new Chunker(opts)
+}
+
+module.exports.Chunker = Chunker
+
+function Chunker(opts) {
+  this.distance = opts.chunkDistance || 2
+  this.chunkSize = opts.chunkSize || 32
+  this.cubeSize = opts.cubeSize || 25
+  this.generateVoxelChunk = opts.generateVoxelChunk
+  this.chunks = {}
+  this.meshes = {}
+}
+
+inherits(Chunker, events.EventEmitter)
+
+Chunker.prototype.nearbyChunks = function(position, distance) {
+  var current = this.chunkAtPosition(position)
+  var x = current[0]
+  var y = current[1]
+  var z = current[2]
+  var dist = distance || this.distance
+  var nearby = []
+  for (var cx = (x - dist); cx !== (x + dist); ++cx) {
+    for (var cy = (y - dist); cy !== (y + dist); ++cy) {
+      for (var cz = (z - dist); cz !== (z + dist); ++cz) {
+        nearby.push([cx, cy, cz])
+      }
+    }
+  }
+  return nearby
+}
+
+Chunker.prototype.requestMissingChunks = function(position) {
+  var self = this
+  this.nearbyChunks(position).map(function(chunk) {
+    if (!self.chunks[chunk.join('|')]) {
+      self.emit('missingChunk', chunk)
+    }
+  })
+}
+
+Chunker.prototype.getBounds = function(x, y, z) {
+  var size = this.chunkSize
+  var low = [x * size, y * size, z * size]
+  var high = [low[0] + size, low[1] + size, low[2] + size]
+  return [low, high]
+}
+
+Chunker.prototype.generateChunk = function(x, y, z) {
+  var self = this
+  var bounds = this.getBounds(x, y, z)
+  var chunk = this.generateVoxelChunk(bounds[0], bounds[1], x, y, z)
+  var position = [x, y, z]
+  chunk.position = position
+  this.chunks[position.join('|')] = chunk
+  return chunk
+}
+
+Chunker.prototype.chunkAtPosition = function(position) {
+  var chunkSize = this.chunkSize
+  var cubeSize = this.cubeSize
+  var cx = position.x / cubeSize / chunkSize
+  var cy = position.y / cubeSize / chunkSize
+  var cz = position.z / cubeSize / chunkSize
+  var chunkPos = [Math.floor(cx), Math.floor(cy), Math.floor(cz)]
+  return chunkPos
+};
+
+Chunker.prototype.voxelIndex = function(voxelVector) {
+  var size = this.chunkSize
+  var vidx = voxelVector.x + voxelVector.y*size + voxelVector.z*size*size
+  return vidx
+}
+
+Chunker.prototype.voxelIndexFromPosition = function(pos) {
+  var v = this.voxelVector(pos)
+  return this.voxelIndex(v)
+}
+
+Chunker.prototype.voxelAtPosition = function(pos, val) {
+  var ckey = this.chunkAtPosition(pos).join('|')
+  var chunk = this.chunks[ckey]
+  if (!chunk) return false
+  var vector = this.voxelVector(pos)
+  var vidx = this.voxelIndex(vector)
+  if (!vidx && vidx !== 0) return false
+  if (typeof val !== 'undefined') {
+    chunk.voxels[vidx] = val
+  }
+  var v = chunk.voxels[vidx]
+  return v
+}
+
+Chunker.prototype.voxelVector = function(pos) {
+  var size = this.chunkSize
+  var cubeSize = this.cubeSize
+  var vx = (size + Math.floor(pos.x / cubeSize) % size) % size
+  var vy = (size + Math.floor(pos.y / cubeSize) % size) % size
+  var vz = (size + Math.floor(pos.z / cubeSize) % size) % size
+  return {x: Math.abs(vx), y: Math.abs(vy), z: Math.abs(vz)}
+};
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/chunker.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel")
+},{"events":10,"inherits":20,"__browserify_process":1}]},{},[3]);

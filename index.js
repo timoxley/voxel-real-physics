@@ -2,6 +2,7 @@
 
 var CANNON = require('cannon')
 var memoize = require('memoizer')
+var aabb = require('aabb-3d')
 
 module.exports = function(game) {
   var physics = new Physics(game.THREE, {
@@ -12,18 +13,36 @@ module.exports = function(game) {
     dt = dt > 300 ? 300 : dt
     physics.tick(dt/200)
   })
-
   physics.game = game
-  physics.createPhysicsEntities(game.camera.position)
+  game.on('renderChunk', function(chunk) {
+    physics.createPhysicsEntities(chunk)
+  })
   return physics
 }
 
 var merge = require('./merge')
 
-Physics.prototype.createPhysicsEntities = function createPhysicsEntities(position) {
+Physics.prototype.createPhysicsEntities = function createPhysicsEntities(chunk) {
+  var cache = {}
+
+  function isProcessed(pos) {
+    return cache[pos.join('|')] || false
+  }
+  function markProcessed(pos) {
+    return cache[pos.join('|')] = true
+  }
+
   var self = this
   var game = this.game
-  var chunk = game.getChunkAtPosition([position.x, position.y, position.z])
+
+  createPhysicsEntities.items = createPhysicsEntities.items || []
+
+  createPhysicsEntities.items.forEach(function(item) {
+    game.scene.remove(item.mesh)
+    self.world.remove(item.body);
+  })
+  createPhysicsEntities.items = []
+
   var startPos =  {
     x: chunk.position[0] - chunk.dims[0] * 2,
     y: chunk.position[1] - chunk.dims[1] * 2,
@@ -37,21 +56,26 @@ Physics.prototype.createPhysicsEntities = function createPhysicsEntities(positio
   }
 
   merge.all(function(x, y, z) {
-    return game.getBlock([x, y, z]) === 3
+    return game.getBlock([x, y, z]) && !isProcessed([x, y, z])
   }, startPos, endPos, function(result) {
     merge.voxelsIn(result).forEach(function(pos) {
-      game.setBlock([pos.x, pos.y, pos.z], 1)
+      markProcessed([pos.x, pos.y, pos.z])
     })
-
     var boxShape = new CANNON.Box(new CANNON.Vec3(result.width / 2, result.height / 2, result.depth / 2))
     var box = new CANNON.RigidBody(0, boxShape)
     box.position.set(result.x, result.y, result.z)
     self.world.add(box);
 
+
     var mesh = new game.THREE.Mesh(
       new game.THREE.CubeGeometry(result.width,result.height,result.depth),
       new game.THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } )
     )
+
+    createPhysicsEntities.items.push({
+      mesh: mesh,
+      body: box
+    })
     mesh.position.set(result.x, result.y, result.z)
     game.scene.add(mesh)
 
@@ -72,7 +96,7 @@ function createWorld(opts) {
   opts = opts || {}
   var world = new CANNON.World();
   if (opts.gravity) world.gravity = opts.gravity
-  world.broadphase = new CANNON.NaiveBroadphase();
+    world.broadphase = new CANNON.NaiveBroadphase();
   var solver = new CANNON.GSSolver();
   solver.iterations = 7;
   world.defaultContactMaterial.contactEquationRegularizationTime = 0.55;
@@ -89,29 +113,6 @@ function createWorld(opts) {
   world.broadphase.useBoundingBoxes = true;
   world.allowSleep = false;
   return world
-}
-
-Physics.prototype.addCollider = function addCollider(x,y,z) {
-  x += 0.5
-  y += 0.5
-  z += 0.5
-  if (colliders.x === x
-       && colliders.y === y
-       && colliders.z === y) return
-
-  var boxShape = new CANNON.Box(new CANNON.Vec3(0.5,0.5,0.5));
-  var collider = new CANNON.RigidBody(0, boxShape);
-  collider.position.set(position[0], position[1], position[2])
-
-  var mesh = new this.game.THREE.Mesh(
-    new this.game.THREE.CubeGeometry(1,1,1),
-    new this.game.THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } )
-  )
-  mesh.position.set(position[0], position[1], position[2])
-  this.game.scene.add(mesh)
-
-  this.colliders.push(collider)
-  this.world.add(collider)
 }
 
 Physics.prototype.add = function add(mesh, body) {

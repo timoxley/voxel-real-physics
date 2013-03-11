@@ -12,6 +12,7 @@
   "dependencies": {
     "voxel-engine": "git://github.com/maxogden/voxel-engine.git",
     "painterly-textures": "~0.0.3",
-    "cannon": "git://github.com/schteppe/cannon.js.git#dev"
+    "cannon": "git://github.com/schteppe/cannon.js.git#dev",
+    "aabb-3d": "0.0.0"
   }
 }

@@ -37,8 +37,8 @@ function findConvexBox(check, startPos, endPos, fn) {
 
   var found = false
   for (var z = startPos.y + 1; !found && y < endPos.y + 1; y++) {
-  for (var x = startPos.x; !found && x < startPos.x + box.width; x++) {
-    for (var z = startPos.z; !found && z < startPos.z + box.depth; z++) {
+    for (var x = startPos.x; !found && x < startPos.x + box.width; x++) {
+      for (var z = startPos.z; !found && z < startPos.z + box.depth; z++) {
         if (!check(x, y, z)) {
           box.height = y - startPos.y
           found = true
@@ -59,9 +59,6 @@ function findConvexBox(check, startPos, endPos, fn) {
 
 findConvexBox.all = function(check, startPos, endPos, done) {
   var results = []
-  var x = 0
-  var y = 0
-  var z = 0
   for (var x = startPos.x; x < endPos.x; x++) {
     for (var y = startPos.y; y < endPos.y; y++) {
       for (var z = startPos.z; z < endPos.z; z++) {

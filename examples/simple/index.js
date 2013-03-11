@@ -13,7 +13,7 @@ var game = new Game({
 	},
 	texturePath: '../../node_modules/painterly-textures/textures/',
   chunkSize: 16,
-  chunkDistance: 0,
+  //chunkDistance: 1,
 })
 game.gravity = [0, -0.98, 0]
 
@@ -30,6 +30,17 @@ physi.world.add(groundBody);
 window.launch = launch
 document.body.onmousedown = launch
 
+document.addEventListener('keydown', function(e) {
+  if (e.keyCode == 49) { // 1
+    launch.type = 1
+    console.log('cannon')
+  }
+  if (e.keyCode == 50) { // 2
+    launch.type = 2
+    console.log('shovel')
+  }
+})
+
 function createBox() {
   var material = game.materials.load('plank')
   material.forEach(function(m, i) {
@@ -45,6 +56,12 @@ function createBox() {
 }
 
 function launch() {
+  if (launch.type = 2) {
+    var ray = game.raycast()
+    if (!ray) return
+    game.setBlock(ray.position, 0)
+    return
+  }
   var CANNON = physi.CANNON
 
   var boxShape = new CANNON.Sphere(0.5);
@@ -67,10 +84,7 @@ function launch() {
   mesh.position = position.clone()
   game.scene.add(mesh);
 
-  //setTimeout(function() {
-    //console.log('add item to world:', b1)
   physi.add(mesh, b1)
-  //}, 4000)
 }
 window.meshes = []
 

@@ -51,92 +51,101 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],2:[function(require,module,exports){(function(process,global,__filename,__dirname){function findConvexBox(check, startPos, endPos, fn) {
-  var box = {
-    x: startPos.x,
-    y: startPos.y,
-    z: startPos.z,
-    width: 0,
-    height: 0,
-    depth: 0,
-    points: []
+},{}],2:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict"
+
+var X = 0
+var Y = 1
+var Z = 2
+
+var WIDTH = 0
+var HEIGHT = 1
+var DEPTH = 2
+
+function findConvexBox(check, startPos, chunk) {
+  if (arguments.length === 2) {
+    chunk = startPos
+    startPos = chunk.position.map(function(v, i) {
+      return v * chunk.dims[i]
+    })
   }
-  if (!check(startPos.x, startPos.y, startPos.z)) {
+  if (!chunk.voxels) throw new Error('Requires game chunk')
+
+  var endPos = chunk.position.map(function(v, i) {
+    return v * chunk.dims[i] + chunk.dims[i]
+  })
+
+  var box = {
+    dims: startPos.map(function(v, i) {return endPos[i] - v}),
+    position: [0,0,0]
+  }
+  if (!check(startPos)) {
     return false
   }
-  for (var x = startPos.x; x < endPos.x + 1; x++) {
-    var y = startPos.y
-    var z = startPos.z
-    if (!check(x, y, z)) {
-      box.width = x - startPos.x
-      break
-    } else {
-      box.points.push({x: x, y: y, z: z})
-    }
-
-  }
   var found = false
-  for (var z = startPos.z + 1; !found && z < endPos.z + 1; z++) {
-    for (var x = startPos.x; !found && x < startPos.x + box.width; x++) {
-      var y = startPos.y
-      if (!check(x, y, z)) {
-        box.depth = z - startPos.z
-        found = true
-      } else {
-        box.points.push({x: x, y: y, z: z})
+  for (var x = startPos[X]; !found && x < endPos[X]; x++) {
+    var y = startPos[Y]
+    var z = startPos[Z]
+    if (!check([x, y, z])) {
+      if (box.dims[WIDTH] > x - startPos[X]) box.dims[WIDTH] = x - startPos[X]
+    }
+  }
+
+  var found = false
+  for (var z = startPos[Z] + 1; !found && z < endPos[Z]; z++) {
+    for (var x = startPos[X]; !found && x < startPos[X] + box.dims[WIDTH]; x++) {
+      var y = startPos[Y]
+      if (!check([x, y, z])) {
+        if (box.dims[DEPTH] > z - startPos[Z]) box.dims[DEPTH] = z - startPos[Z]
       }
     }
   }
 
   var found = false
-  for (var z = startPos.y + 1; !found && y < endPos.y + 1; y++) {
-    for (var x = startPos.x; !found && x < startPos.x + box.width; x++) {
-      for (var z = startPos.z; !found && z < startPos.z + box.depth; z++) {
-        if (!check(x, y, z)) {
-          box.height = y - startPos.y
-          found = true
+  for (var y = startPos[Y] + 1; !found && y < endPos[Y]; y++) {
+    for (var x = startPos[X]; !found && x < startPos[X] + box.dims[WIDTH]; x++) {
+      for (var z = startPos[Z]; !found && z < startPos[Z] + box.dims[DEPTH]; z++) {
+        if (!check([x, y, z])) {
+          if (box.dims[HEIGHT] > y - startPos[Y]) box.dims[HEIGHT] = y - startPos[Y]
         }
       }
     }
   }
 
-  if (box.width == 0) box.width = 1;
-  if (box.height == 0) box.height = 1;
-  if (box.depth == 0) box.depth = 1;
-
-  box.x = startPos.x + box.width / 2
-  box.y = startPos.y + box.height / 2
-  box.z = startPos.z + box.depth / 2
+  if (box.dims[WIDTH] == 0) box.dims[WIDTH] = 1;
+  if (box.dims[HEIGHT] == 0) box.dims[HEIGHT] = 1;
+  if (box.dims[DEPTH] == 0) box.dims[DEPTH] = 1;
+  box.position[X] = startPos[X] //+ box.dims[WIDTH]
+  box.position[Y] = startPos[Y] //+ box.dims[HEIGHT]
+  box.position[Z] = startPos[Z] //+ box.dims[DEPTH]
   return box
 }
 
-findConvexBox.all = function(check, startPos, endPos, done) {
+findConvexBox.all = function(check, chunk, done) {
   var results = []
-  for (var x = startPos.x; x < endPos.x; x++) {
-    for (var y = startPos.y; y < endPos.y; y++) {
-      for (var z = startPos.z; z < endPos.z; z++) {
-        var result = findConvexBox(check, {x: x, y: y, z: z}, endPos)
-        if (result) {
-          done(result)
-          results.push(result)
-        }
-      }
+  findConvexBox.voxelsIn(chunk).forEach(function(pos) {
+    var result = findConvexBox(check, pos, chunk)
+    if (result) {
+      done(result)
+      results.push(result)
     }
-  }
+  })
   return results
 }
 
 
-findConvexBox.voxelsIn = function voxelsIn(box) {
-  var boxX = box.x - box.width / 2
-  var boxY = box.y - box.height / 2
-  var boxZ = box.z - box.depth / 2
+findConvexBox.voxelsIn = function voxelsIn(chunk) {
+  if (chunk.voxels) {
+    chunk = {
+      dims: chunk.dims.map(function(v) {return v}),
+      position: chunk.position.map(function(v, i) {return v * chunk.dims[i]})
+    }
+  }
 
   var points = []
-  for (var x = boxX; x < boxX + box.width; x++) {
-    for (var y = boxY; y < boxY + box.height; y++) {
-      for (var z = boxZ; z < boxZ + box.depth; z++) {
-        points.push({x: x, y: y, z: z})
+  for (var x = chunk.position[X]; x < chunk.position[X] + chunk.dims[WIDTH]; x++) {
+    for (var y = chunk.position[Y]; y < chunk.position[Y] + chunk.dims[HEIGHT]; y++) {
+      for (var z = chunk.position[Z]; z < chunk.position[Z] + chunk.dims[DEPTH]; z++) {
+        points.push([x, y, z])
       }
     }
   }
@@ -154,21 +163,20 @@ var textures = require('painterly-textures')
 Game.prototype.initializeControls = Game.prototype.hookupControls = function() {}
 
 var game = new Game({
-	generate: function(x, y, z) {
+  generate: function(x, y, z) {
     var val = y + 3 * Math.sin(z / 4)
     if (val < -1 && val > -5) return 3
-		return 0
-	},
-	texturePath: '../../node_modules/painterly-textures/textures/',
-  chunkSize: 16,
-  //chunkDistance: 1,
+      return 0
+  },
+  texturePath: '../../node_modules/painterly-textures/textures/',
+  chunkSize: 16
 })
 game.gravity = [0, -0.98, 0]
 
 var Physics = require('../../')
 var physi = window.physi = Physics(game)
 
-var groundShape = new physi.CANNON.Plane()//new physi.CANNON.Vec3(-1,0,0));
+var groundShape = new physi.CANNON.Plane()
 var groundBody = new physi.CANNON.RigidBody(0, groundShape);
 groundBody.quaternion.setFromAxisAngle(new physi.CANNON.Vec3(-1,0,0),Math.PI/2);
 groundBody.position.set(0,-5,0);
@@ -177,6 +185,7 @@ physi.world.add(groundBody);
 
 window.launch = launch
 document.body.onmousedown = launch
+launch.type = 2
 
 document.addEventListener('keydown', function(e) {
   if (e.keyCode == 49) { // 1
@@ -193,7 +202,7 @@ function createBox() {
   var material = game.materials.load('plank')
   material.forEach(function(m, i) {
     if (i == 2 || i == 3) return
-    m.map.repeat.set(1, 5)
+      m.map.repeat.set(1, 5)
   })
   var mesh = new game.THREE.Mesh(
     new game.THREE.SphereGeometry(0.5),
@@ -204,10 +213,10 @@ function createBox() {
 }
 
 function launch() {
-  if (launch.type = 2) {
+  if (launch.type == 2) {
     var ray = game.raycast()
     if (!ray) return
-    game.setBlock(ray.position, 0)
+      game.setBlock(ray.position, 0)
     return
   }
   var CANNON = physi.CANNON
@@ -222,17 +231,17 @@ function launch() {
   b1.angularVelocity.set(Math.random(),
                          Math.random(),
                          Math.random())
-  b1.linearDamping=0.1;
-  b1.angularDamping=0.1;
+   b1.linearDamping=0.1;
+   b1.angularDamping=0.1;
 
-  var mesh = createBox()
-  mesh.position = position.clone()
-  game.scene.add(mesh);
+   var mesh = createBox()
+   mesh.position = position.clone()
+   game.scene.add(mesh);
 
-  mesh.position = position.clone()
-  game.scene.add(mesh);
+   mesh.position = position.clone()
+   game.scene.add(mesh);
 
-  physi.add(mesh, b1)
+   physi.add(mesh, b1)
 }
 window.meshes = []
 
@@ -247,7 +256,7 @@ window.game = game
 window.fControls = new FirstPersonControls(game.camera, document.body)
 game.on('tick', function(dt) {
   if (window.fr) return
-  fControls.update(dt / 60)
+    fControls.update(dt / 60)
 })
 
 /**
@@ -258,296 +267,296 @@ game.on('tick', function(dt) {
 function FirstPersonControls( object, domElement ) {
   var THREE = game.THREE
 
-	this.object = object;
-	this.target = new THREE.Vector3( 0, 0, 0 );
+  this.object = object;
+  this.target = new THREE.Vector3( 0, 0, 0 );
 
-	this.domElement = ( domElement !== undefined ) ? domElement : document;
+  this.domElement = ( domElement !== undefined ) ? domElement : document;
 
-	this.movementSpeed = 0.7;
-	this.lookSpeed = 0.02;
+  this.movementSpeed = 0.7;
+  this.lookSpeed = 0.02;
 
-	this.lookVertical = true;
-	this.autoForward = false;
+  this.lookVertical = true;
+  this.autoForward = false;
   this.invertVertical = true;
 
-	this.activeLook = true;
+  this.activeLook = true;
 
-	this.heightSpeed = false;
-	this.heightCoef = 1.0;
-	this.heightMin = 0.0;
-	this.heightMax = 1.0;
+  this.heightSpeed = false;
+  this.heightCoef = 1.0;
+  this.heightMin = 0.0;
+  this.heightMax = 1.0;
 
-	this.constrainVertical = false;
-	this.verticalMin = 0;
-	this.verticalMax = Math.PI;
+  this.constrainVertical = false;
+  this.verticalMin = 0;
+  this.verticalMax = Math.PI;
 
-	this.autoSpeedFactor = 0.0;
+  this.autoSpeedFactor = 0.0;
 
-	this.mouseX = 0;
-	this.mouseY = 0;
+  this.mouseX = 0;
+  this.mouseY = 0;
 
-	this.lat = 0;
-	this.lon = 0;
-	this.phi = 0;
-	this.theta = 0;
+  this.lat = 0;
+  this.lon = 0;
+  this.phi = 0;
+  this.theta = 0;
 
-	this.moveForward = false;
-	this.moveBackward = false;
-	this.moveLeft = false;
-	this.moveRight = false;
-	this.freeze = false;
+  this.moveForward = false;
+  this.moveBackward = false;
+  this.moveLeft = false;
+  this.moveRight = false;
+  this.freeze = false;
 
-	this.mouseDragOn = false;
+  this.mouseDragOn = false;
 
-	this.viewHalfX = 0;
-	this.viewHalfY = 0;
+  this.viewHalfX = 0;
+  this.viewHalfY = 0;
 
-	if ( this.domElement !== document ) {
+  if ( this.domElement !== document ) {
 
-		this.domElement.setAttribute( 'tabindex', -1 );
+    this.domElement.setAttribute( 'tabindex', -1 );
 
-	}
+  }
 
-	//
+  //
 
-	this.handleResize = function () {
+  this.handleResize = function () {
 
-		if ( this.domElement === document ) {
+    if ( this.domElement === document ) {
 
-			this.viewHalfX = window.innerWidth / 2;
-			this.viewHalfY = window.innerHeight / 2;
+      this.viewHalfX = window.innerWidth / 2;
+      this.viewHalfY = window.innerHeight / 2;
 
-		} else {
+    } else {
 
-			this.viewHalfX = this.domElement.offsetWidth / 2;
-			this.viewHalfY = this.domElement.offsetHeight / 2;
+      this.viewHalfX = this.domElement.offsetWidth / 2;
+      this.viewHalfY = this.domElement.offsetHeight / 2;
 
-		}
+    }
 
-	};
+  };
 
-	this.onMouseDown = function ( event ) {
+  this.onMouseDown = function ( event ) {
 
-		if ( this.domElement !== document ) {
+    if ( this.domElement !== document ) {
 
-			this.domElement.focus();
+      this.domElement.focus();
 
-		}
+    }
 
-		event.preventDefault();
-		event.stopPropagation();
+    event.preventDefault();
+    event.stopPropagation();
 
-		if ( this.activeLook ) {
+    if ( this.activeLook ) {
 
-			switch ( event.button ) {
+      switch ( event.button ) {
 
-				case 0: this.moveForward = true; break;
-				case 2: this.moveBackward = true; break;
+        case 0: this.moveForward = true; break;
+        case 2: this.moveBackward = true; break;
 
-			}
+      }
 
-		}
+    }
 
-		this.mouseDragOn = true;
+    this.mouseDragOn = true;
 
-	};
+  };
 
-	this.onMouseUp = function ( event ) {
+  this.onMouseUp = function ( event ) {
 
-		event.preventDefault();
-		event.stopPropagation();
+    event.preventDefault();
+    event.stopPropagation();
 
-		if ( this.activeLook ) {
+    if ( this.activeLook ) {
 
-			switch ( event.button ) {
+      switch ( event.button ) {
 
-				case 0: this.moveForward = false; break;
-				case 2: this.moveBackward = false; break;
+        case 0: this.moveForward = false; break;
+        case 2: this.moveBackward = false; break;
 
-			}
+      }
 
-		}
+    }
 
-		this.mouseDragOn = false;
+    this.mouseDragOn = false;
 
-	};
+  };
 
-	this.onMouseMove = function ( event ) {
+  this.onMouseMove = function ( event ) {
 
-		if ( this.domElement === document ) {
+    if ( this.domElement === document ) {
 
-			this.mouseX = event.pageX - this.viewHalfX;
-			this.mouseY = event.pageY - this.viewHalfY;
+      this.mouseX = event.pageX - this.viewHalfX;
+      this.mouseY = event.pageY - this.viewHalfY;
 
-		} else {
+    } else {
 
-			this.mouseX = event.pageX - this.domElement.offsetLeft - this.viewHalfX;
-			this.mouseY = event.pageY - this.domElement.offsetTop - this.viewHalfY;
+      this.mouseX = event.pageX - this.domElement.offsetLeft - this.viewHalfX;
+      this.mouseY = event.pageY - this.domElement.offsetTop - this.viewHalfY;
 
-		}
+    }
 
-	};
+  };
 
-	this.onKeyDown = function ( event ) {
+  this.onKeyDown = function ( event ) {
 
-		//event.preventDefault();
+    //event.preventDefault();
 
-		switch ( event.keyCode ) {
+    switch ( event.keyCode ) {
 
-			case 38: /*up*/
-			case 87: /*W*/ this.moveForward = true; break;
+      case 38: /*up*/
+      case 87: /*W*/ this.moveForward = true; break;
 
-			case 37: /*left*/
-			case 65: /*A*/ this.moveLeft = true; break;
+      case 37: /*left*/
+      case 65: /*A*/ this.moveLeft = true; break;
 
-			case 40: /*down*/
-			case 83: /*S*/ this.moveBackward = true; break;
+      case 40: /*down*/
+      case 83: /*S*/ this.moveBackward = true; break;
 
-			case 39: /*right*/
-			case 68: /*D*/ this.moveRight = true; break;
+      case 39: /*right*/
+      case 68: /*D*/ this.moveRight = true; break;
 
-			case 82: /*R*/ this.moveUp = true; break;
-			case 70: /*F*/ this.moveDown = true; break;
+      case 82: /*R*/ this.moveUp = true; break;
+      case 70: /*F*/ this.moveDown = true; break;
 
-			case 81: /*Q*/ this.freeze = !this.freeze; break;
+      case 81: /*Q*/ this.freeze = !this.freeze; break;
 
-		}
+    }
 
-	};
+  };
 
-	this.onKeyUp = function ( event ) {
+  this.onKeyUp = function ( event ) {
 
-		switch( event.keyCode ) {
+    switch( event.keyCode ) {
 
-			case 38: /*up*/
-			case 87: /*W*/ this.moveForward = false; break;
+      case 38: /*up*/
+      case 87: /*W*/ this.moveForward = false; break;
 
-			case 37: /*left*/
-			case 65: /*A*/ this.moveLeft = false; break;
+      case 37: /*left*/
+      case 65: /*A*/ this.moveLeft = false; break;
 
-			case 40: /*down*/
-			case 83: /*S*/ this.moveBackward = false; break;
+      case 40: /*down*/
+      case 83: /*S*/ this.moveBackward = false; break;
 
-			case 39: /*right*/
-			case 68: /*D*/ this.moveRight = false; break;
+      case 39: /*right*/
+      case 68: /*D*/ this.moveRight = false; break;
 
-			case 82: /*R*/ this.moveUp = false; break;
-			case 70: /*F*/ this.moveDown = false; break;
+      case 82: /*R*/ this.moveUp = false; break;
+      case 70: /*F*/ this.moveDown = false; break;
 
-		}
+    }
 
-	};
+  };
 
-	this.update = function( delta ) {
+  this.update = function( delta ) {
 
-		if ( this.freeze ) {
+    if ( this.freeze ) {
 
-			return;
+      return;
 
-		}
+    }
 
-		if ( this.heightSpeed ) {
+    if ( this.heightSpeed ) {
 
-			var y = THREE.Math.clamp( this.object.position.y, this.heightMin, this.heightMax );
-			var heightDelta = y - this.heightMin;
+      var y = THREE.Math.clamp( this.object.position.y, this.heightMin, this.heightMax );
+      var heightDelta = y - this.heightMin;
 
-			this.autoSpeedFactor = delta * ( heightDelta * this.heightCoef );
+      this.autoSpeedFactor = delta * ( heightDelta * this.heightCoef );
 
-		} else {
+    } else {
 
-			this.autoSpeedFactor = 0.0;
+      this.autoSpeedFactor = 0.0;
 
-		}
+    }
 
-		var actualMoveSpeed = delta * this.movementSpeed;
+    var actualMoveSpeed = delta * this.movementSpeed;
 
-		if ( this.moveForward || ( this.autoForward && !this.moveBackward ) ) this.object.translateZ( - ( actualMoveSpeed + this.autoSpeedFactor ) );
-		if ( this.moveBackward ) this.object.translateZ( actualMoveSpeed );
+    if ( this.moveForward || ( this.autoForward && !this.moveBackward ) ) this.object.translateZ( - ( actualMoveSpeed + this.autoSpeedFactor ) );
+    if ( this.moveBackward ) this.object.translateZ( actualMoveSpeed );
 
-		if ( this.moveLeft ) this.object.translateX( - actualMoveSpeed );
-		if ( this.moveRight ) this.object.translateX( actualMoveSpeed );
+    if ( this.moveLeft ) this.object.translateX( - actualMoveSpeed );
+    if ( this.moveRight ) this.object.translateX( actualMoveSpeed );
 
-		if ( this.moveUp ) this.object.translateY( actualMoveSpeed );
-		if ( this.moveDown ) this.object.translateY( - actualMoveSpeed );
+    if ( this.moveUp ) this.object.translateY( actualMoveSpeed );
+    if ( this.moveDown ) this.object.translateY( - actualMoveSpeed );
 
-		var actualLookSpeed = delta * this.lookSpeed;
+    var actualLookSpeed = delta * this.lookSpeed;
 
-		if ( !this.activeLook ) {
+    if ( !this.activeLook ) {
 
-			actualLookSpeed = 0;
+      actualLookSpeed = 0;
 
-		}
+    }
 
-		var verticalLookRatio = 1;
+    var verticalLookRatio = 1;
 
-		if ( this.constrainVertical ) {
+    if ( this.constrainVertical ) {
 
-			verticalLookRatio = Math.PI / ( this.verticalMax - this.verticalMin );
+      verticalLookRatio = Math.PI / ( this.verticalMax - this.verticalMin );
 
-		}
+    }
 
-		this.lon += this.mouseX * actualLookSpeed;
-		if( this.lookVertical ) this.lat -= this.mouseY * actualLookSpeed * verticalLookRatio;
+    this.lon += this.mouseX * actualLookSpeed;
+    if( this.lookVertical ) this.lat -= this.mouseY * actualLookSpeed * verticalLookRatio;
 
-		this.lat = Math.max( - 85, Math.min( 85, this.lat ) );
-		this.phi = THREE.Math.degToRad( 90 - this.lat );
+    this.lat = Math.max( - 85, Math.min( 85, this.lat ) );
+    this.phi = THREE.Math.degToRad( 90 - this.lat );
 
-		this.theta = THREE.Math.degToRad( this.lon );
+    this.theta = THREE.Math.degToRad( this.lon );
 
-		if ( this.constrainVertical ) {
+    if ( this.constrainVertical ) {
 
-			this.phi = THREE.Math.mapLinear( this.phi, 0, Math.PI, this.verticalMin, this.verticalMax );
+      this.phi = THREE.Math.mapLinear( this.phi, 0, Math.PI, this.verticalMin, this.verticalMax );
 
-		}
+    }
 
-		var targetPosition = this.target,
-			position = this.object.position;
+    var targetPosition = this.target,
+    position = this.object.position;
 
-		targetPosition.x = position.x + 100 * Math.sin( this.phi ) * Math.cos( this.theta );
-		targetPosition.y = position.y + 100 * Math.cos( this.phi );
-		targetPosition.z = position.z + 100 * Math.sin( this.phi ) * Math.sin( this.theta );
+    targetPosition.x = position.x + 100 * Math.sin( this.phi ) * Math.cos( this.theta );
+    targetPosition.y = position.y + 100 * Math.cos( this.phi );
+    targetPosition.z = position.z + 100 * Math.sin( this.phi ) * Math.sin( this.theta );
 
-		this.object.lookAt( targetPosition );
+    this.object.lookAt( targetPosition );
 
-	};
+  };
 
 
-	this.domElement.addEventListener( 'contextmenu', function ( event ) { event.preventDefault(); }, false );
+  this.domElement.addEventListener( 'contextmenu', function ( event ) { event.preventDefault(); }, false );
 
-	this.domElement.addEventListener( 'mousemove', bind( this, this.onMouseMove ), false );
-	//this.domElement.addEventListener( 'mousedown', bind( this, this.onMouseDown ), false );
-	//this.domElement.addEventListener( 'mouseup', bind( this, this.onMouseUp ), false );
-	this.domElement.addEventListener( 'keydown', bind( this, this.onKeyDown ), false );
-	this.domElement.addEventListener( 'keyup', bind( this, this.onKeyUp ), false );
+  this.domElement.addEventListener( 'mousemove', bind( this, this.onMouseMove ), false );
+  //this.domElement.addEventListener( 'mousedown', bind( this, this.onMouseDown ), false );
+  //this.domElement.addEventListener( 'mouseup', bind( this, this.onMouseUp ), false );
+  this.domElement.addEventListener( 'keydown', bind( this, this.onKeyDown ), false );
+  this.domElement.addEventListener( 'keyup', bind( this, this.onKeyUp ), false );
 
-	function bind( scope, fn ) {
+  function bind( scope, fn ) {
 
-		return function () {
+    return function () {
 
-			fn.apply( scope, arguments );
+      fn.apply( scope, arguments );
 
-		};
+    };
 
-	};
+  };
 
-	this.handleResize();
+  this.handleResize();
 
 };
 
 })(require("__browserify_process"),window,"/index.js","/")
-},{"../../":4,"painterly-textures":5,"voxel-engine":6,"__browserify_process":1}],5:[function(require,module,exports){(function(process,global,__filename,__dirname){var path = require('path')
-var texturePath = __dirname + '/textures'
-
-module.exports = function(dir) {
-  return path.relative(dir, texturePath) + '/'
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/painterly-textures/painterly.js","/../../node_modules/painterly-textures")
-},{"path":7,"__browserify_process":1}],4:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict"
+},{"../../":4,"painterly-textures":5,"voxel-engine":6,"__browserify_process":1}],4:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict"
 
 var CANNON = require('cannon')
 var memoize = require('memoizer')
 var aabb = require('aabb-3d')
+
+var X = 0
+var Y = 1
+var Z = 2
+
+var WIDTH = 0
+var HEIGHT = 1
+var DEPTH = 2
 
 module.exports = function(game) {
   var physics = new Physics(game.THREE, {
@@ -562,6 +571,11 @@ module.exports = function(game) {
   game.on('renderChunk', function(chunk) {
     physics.createPhysicsEntities(chunk)
   })
+  for (var chunkPos in game.voxels.chunks) {
+    var chunk = game.voxels.chunks[chunkPos]
+    if (chunk) physics.createPhysicsEntities(chunk)
+  }
+
   return physics
 }
 
@@ -569,7 +583,6 @@ var merge = require('./merge')
 
 Physics.prototype.createPhysicsEntities = function createPhysicsEntities(chunk) {
   var cache = {}
-
 
   function isProcessed(pos) {
     return cache[pos.join('|')] || false
@@ -581,48 +594,38 @@ Physics.prototype.createPhysicsEntities = function createPhysicsEntities(chunk) 
   var self = this
   var game = this.game
 
-  createPhysicsEntities.items = createPhysicsEntities.items || []
-
-  createPhysicsEntities.items.forEach(function(item) {
+  createPhysicsEntities.items = createPhysicsEntities.items || {}
+  var chunkItems = createPhysicsEntities.items[chunk.position.join('|')]
+  chunkItems && chunkItems.forEach(function(item) {
     game.scene.remove(item.mesh)
     self.world.remove(item.body);
   })
-  createPhysicsEntities.items = []
+  chunkItems = createPhysicsEntities.items[chunk.position.join('|')] = []
 
-  var startPos =  {
-    x: chunk.position[0] - chunk.dims[0] * 2,
-    y: chunk.position[1] - chunk.dims[1] * 2,
-    z: chunk.position[2] - chunk.dims[2] * 2
-  }
-
-  var endPos = {
-    x: chunk.position[0] + chunk.dims[0] * 2,
-    y: chunk.position[1] + chunk.dims[1] * 2,
-    z: chunk.position[2] + chunk.dims[2] * 2
-  }
-
-  merge.all(function(x, y, z) {
-    return game.getBlock([x, y, z]) && !isProcessed([x, y, z])
-  }, startPos, endPos, function(result) {
+  merge.all(function(pos) {
+    return game.getBlock(pos) && !isProcessed(pos)
+  }, chunk, function(result) {
     merge.voxelsIn(result).forEach(function(pos) {
-      markProcessed([pos.x, pos.y, pos.z])
+      markProcessed(pos)
     })
-    var boxShape = new CANNON.Box(new CANNON.Vec3(result.width / 2, result.height / 2, result.depth / 2))
+    var position = result.position.map(function(v, i) {return v + result.dims[i] / 2})
+    var boxShape = new CANNON.Box(new CANNON.Vec3(result.dims[WIDTH] / 2, result.dims[HEIGHT] / 2, result.dims[DEPTH] / 2))
     var box = new CANNON.RigidBody(0, boxShape)
-    box.position.set(result.x, result.y, result.z)
+    box.position.set.apply(box.position, position)
     self.world.add(box);
 
 
     var mesh = new game.THREE.Mesh(
-      new game.THREE.CubeGeometry(result.width,result.height,result.depth),
+      new game.THREE.CubeGeometry(result.dims[WIDTH],result.dims[HEIGHT],result.dims[DEPTH]),
       new game.THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } )
     )
 
-    createPhysicsEntities.items.push({
+    chunkItems.push({
       mesh: mesh,
       body: box
     })
-    mesh.position.set(result.x, result.y, result.z)
+
+    box.position.copy(mesh.position)
     game.scene.add(mesh)
 
   })
@@ -642,12 +645,12 @@ function createWorld(opts) {
   opts = opts || {}
   var world = new CANNON.World();
   if (opts.gravity) world.gravity = opts.gravity
-  world.broadphase = new CANNON.NaiveBroadphase();
+    world.broadphase = new CANNON.NaiveBroadphase();
   var solver = new CANNON.GSSolver();
   solver.iterations = 7;
   world.defaultContactMaterial.contactEquationRegularizationTime = 0.55;
   solver.tolerance = 0.1;
-  world.solver = new CANNON.SplitSolver(solver);
+  world.solver = solver// new CANNON.SplitSolver(solver);
 
   world.quatNormalizeFast = true;
   world.quatNormalizeSkip = 0;
@@ -659,29 +662,6 @@ function createWorld(opts) {
   world.broadphase.useBoundingBoxes = true;
   world.allowSleep = false;
   return world
-}
-
-Physics.prototype.addCollider = function addCollider(x,y,z) {
-  x += 0.5
-  y += 0.5
-  z += 0.5
-  if (colliders.x === x
-       && colliders.y === y
-       && colliders.z === y) return
-
-  var boxShape = new CANNON.Box(new CANNON.Vec3(0.5,0.5,0.5));
-  var collider = new CANNON.RigidBody(0, boxShape);
-  collider.position.set(position[0], position[1], position[2])
-
-  var mesh = new this.game.THREE.Mesh(
-    new this.game.THREE.CubeGeometry(1,1,1),
-    new this.game.THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } )
-  )
-  mesh.position.set(position[0], position[1], position[2])
-  this.game.scene.add(mesh)
-
-  this.colliders.push(collider)
-  this.world.add(collider)
 }
 
 Physics.prototype.add = function add(mesh, body) {
@@ -709,7 +689,15 @@ function update(mesh, body) {
 
 
 })(require("__browserify_process"),window,"/../../index.js","/../..")
-},{"./merge":2,"memoizer":8,"cannon":9,"aabb-3d":10,"__browserify_process":1}],9:[function(require,module,exports){(function(process,global,__filename,__dirname){/*
+},{"./merge":2,"cannon":7,"memoizer":8,"aabb-3d":9,"__browserify_process":1}],5:[function(require,module,exports){(function(process,global,__filename,__dirname){var path = require('path')
+var texturePath = __dirname + '/textures'
+
+module.exports = function(dir) {
+  return path.relative(dir, texturePath) + '/'
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/painterly-textures/painterly.js","/../../node_modules/painterly-textures")
+},{"path":10,"__browserify_process":1}],7:[function(require,module,exports){(function(process,global,__filename,__dirname){/*
  * Copyright (c) 2012 cannon.js Authors
  * 
  * Permission is hereby granted, free of charge, to any person
@@ -7210,7 +7198,7 @@ if (typeof module !== 'undefined') {
 
 }).apply(this);
 })(require("__browserify_process"),window,"/../../node_modules/cannon/build/cannon.js","/../../node_modules/cannon/build")
-},{"__browserify_process":1}],7:[function(require,module,exports){(function(process,global,__filename,__dirname){function filter (xs, fn) {
+},{"__browserify_process":1}],10:[function(require,module,exports){(function(process,global,__filename,__dirname){function filter (xs, fn) {
     var res = [];
     for (var i = 0; i < xs.length; i++) {
         if (fn(xs[i], i, xs)) res.push(xs[i]);
@@ -7848,238 +7836,106 @@ function Memoizer(fn) {
 };
 
 })(require("__browserify_process"),window,"/../../node_modules/memoizer/index.js","/../../node_modules/memoizer")
-},{"events":11,"treelib":14,"textual":15,"__browserify_process":1}],14:[function(require,module,exports){(function(process,global,__filename,__dirname){// incidentally, does shrubs too :-)
-var Treelib = function(tree) {
-	var self = {};
-	if (tree === undefined) 
-		tree = {};
-	var currentBranch = {};
-	var config = {};
-	config.historyWindow = 50;	
-	var history = [];
-	var setCurrentBranch = function(list) {
-		var branch = tree; 
-		var i = 0;
-		for (i = 0; i < list.length; i++) {
-			if (branch[list[i]] !== undefined) {
-				branch = branch[list[i]];
-			} else {
-				break;
-			}
-		}
-		currentBranch.branch = branch;
-		currentBranch.leaf = list[list.length-1];
-	};
-	var checkPath_array = function(list) {
-		var branch = tree; 
-		var depth = 0;
-		var validPath = [];
-		var i = 0;
-		for (i = 0; i < list.length; i++) {
-			if (branch.hasOwnProperty(list[i])) {
-				validPath.push(list[i]);
-			}
-			if (branch[list[i]] !== undefined) {
-				branch = branch[list[i]];
-			} else {
-				break;
-			}
-		}
-		return {depth:validPath.length,validPath:validPath}
-	};
-	var checkPath_string = function(path) {
-		var list = path.split('/');
-		return checkPath_array(list.slice(0));
-	};
-	var deletePath_array = function(list) {
-		var branch = tree;
-		
-	};
-	var createPath = function(list,obj) {
-		var newobj = {};
-		if (list.length == 0) {
-			return obj;
-		} else if (list.length > 0) {
-			newobj[list[0]] = obj;
-			list.shift();   
-			return createPath(list,newobj);
-		}       
-	};
-	var addHistory = function(obj) {
-		history.push(obj);
-		if (history.length == config.historyWindow) {
-			history.shift();
-		}
-	};
-	var addPath_array = function(list) {
-		var newPath = createPath(list.slice(0).reverse());
-		addHistory(newPath);	
-		merge(newPath,tree);	
-		setCurrentBranch(list);
-	};
-	var addPath_string = function(path) {
-		var list = path.split('/');
-		addPath_array(list.slice(0));
-	};
-	var setValue = function(val) {
-		currentBranch.branch[currentBranch.leaf] = val;
-		currentBranch.val = val;
-		addHistory(currentBranch);
-	};
-	var getValue_string = function(path) {
-		var list = path.split('/');
-		return getValue_array(list.slice(0));	
-	};
-	var getValue_array = function(list) {
-		var result = checkPath_array(list);
-		if (result.validPath.length < list.length) {
-			return undefined
-		}	
-		var branch = tree;
-		for (i = 0; i < list.length; i++) {
-			branch = branch[list[i]];
-		}
-		return branch;
-	};
-	var merge = function (from,to) {
-		Object.keys(from).forEach(function (key) {
-			if ((to !== undefined) && (to[key] !== undefined)) {
-				if (from[key] !== undefined) 
-					merge(from[key], to[key])	
-			} else if (to !== undefined)
-				to[key] = from[key];
-		});
-	};
-	var blend = function(obj1,obj2) {
-		merge(obj1,obj2);
-		merge(obj2,obj1);
-	};
-	var clearValue_string = function(path) {
-		var list = path.split('/');
-		clearValue_array(list);
-	};
-	var clearValue_array = function(list) {
-		var result = checkPath_array(list);		
-		var branch = tree;
-		var i = 0;
-		for (i = 0; i < list.length; i++) {
-			if (i < (list.length-1))
-			branch = branch[list[i]];
-		}
-		branch[list[i-1]] = undefined;
-	};
-	self.add = function(path) {
-		if (typeof path == 'string') {
-			addPath_string(path);
-		}
-		else if (Array.isArray(path)) {
-			addPath_array(path);
-		}
-		return self;
-	};
-	self.clearValue = function(path) {
-		if (typeof path == 'string') {
-			clearValue_string(path);
-		}
-		else if (Array.isArray(path)) {
-			clearValue_array(path);
-		}
-		return self;
-	};
-	self.createPath = function(path,obj) {
-		var obj = {};
-		createPath(path.slice(0).reverse(),obj);
-		return self;
-	};
-	self.setValue = function(val) {
-		setValue(val);
-		return self;
-	};
-	self.getValue = function(path) {
-		if (typeof path == 'string') {
-			return getValue_string(path);
-		}
-		else if (Array.isArray(path)) {
-			return getValue_array(path);
-		}
-	};
-	self.path = function (path) {
-		this.add(path);
-		return self;
-	};
-	self.setConfig = function(obj) {
-		for (var i in obj) {
-			config[i] = obj[i];
-		}
-	}
-	self.checkPath = function(path) {
-		if (typeof path == 'string') 
-			return checkPath_string(path)
-		else if (Array.isArray(path))
-			return checkPath_array(path)
-	};
-	self.show = function() {
-		console.log(tree);
-		return self;
-	};
-	self.tree = function() {
-		return tree;
-	};
-	self.clear = function() {
-		tree = {};
-		return self;
-	};
-	self.history = function() {
-		return history;
-	};
-	return self;
-};
-exports = module.exports = Treelib;
+},{"events":11,"treelib":14,"textual":15,"__browserify_process":1}],9:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = AABB
 
-})(require("__browserify_process"),window,"/../../node_modules/memoizer/node_modules/treelib/index.js","/../../node_modules/memoizer/node_modules/treelib")
-},{"__browserify_process":1}],15:[function(require,module,exports){(function(process,global,__filename,__dirname){var getArgs = function(fn) {
-	var fnstr = fn.toString();
-	var args = fnstr.match(/function\s*\((.*?)\)\s*{/);
-	if (args === null) {
-		args = fnstr.match(/function\s*[a-zA-Z_$][0-9a-zA-Z_$]*\s*\((.*?)\)\s*{/);
-	}
-	if (args !== null) {
-		if ((args[1] !== undefined) && (args[1] != '')) {
-			var argstr = args[1];
-			return argstr.split(',').map(function(val){return val.trim()});
-		} else {
-			return [];
-		}
-	} else {
-		return undefined;
-	}
-};
-var getLastArg = function(fn) {
-	var args = getArgs(fn);
-	return args.slice(-1);
-};
-var getFirstArg = function(fn) {
-	var args = getArgs(fn);
-	return args.slice(0,1);
-};
-exports.getArgs = getArgs;
-exports.getLastArg = getLastArg;
-exports.getFirstArg = getFirstArg;
-exports.doesObjectCallMethod = function(fn,objstr,methodstr) {
-	var fnstr = fn.toString();
-	// we check here because there objstr is usually
-	// set from getLastArg which may return undefined
-	// on a function () with no params
-	if (objstr === undefined) { return false; }
-	var index = fnstr.indexOf(objstr + '.' + methodstr);
-	if (index > 0) {
-		return true;
-	}
-	return false;
-};
+var vec3 = require('gl-matrix').vec3
 
-})(require("__browserify_process"),window,"/../../node_modules/memoizer/node_modules/textual/index.js","/../../node_modules/memoizer/node_modules/textual")
-},{"__browserify_process":1}],16:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict"
+function AABB(pos, vec) {
+  if(!(this instanceof AABB)) {
+    return new AABB(pos, vec)
+  }
+
+  this.base = pos
+  this.vec = vec
+
+  this.mag = vec3.length(this.vec)
+
+  this.max = vec3.create()
+  vec3.add(this.max, this.base, this.vec)
+}
+
+var cons = AABB
+  , proto = cons.prototype
+
+proto.width = function() {
+  return this.vec[0]
+}
+
+proto.height = function() {
+  return this.vec[1]
+}
+
+proto.depth = function() {
+  return this.vec[2]
+}
+
+proto.x0 = function() {
+  return this.base[0]
+}
+
+proto.y0 = function() {
+  return this.base[1]
+}
+
+proto.z0 = function() {
+  return this.base[2]
+}
+
+proto.x1 = function() {
+  return this.max[0]
+}
+
+proto.y1 = function() {
+  return this.max[1]
+}
+
+proto.z1 = function() {
+  return this.max[2]
+}
+
+proto.translate = function(by) {
+  vec3.add(this.max, this.max, by)
+  vec3.add(this.base, this.base, by)
+  return this
+}
+
+proto.expand = function(aabb) {
+  var max = vec3.create()
+    , min = vec3.create()
+
+  vec3.max(max, aabb.max, this.max)
+  vec3.min(min, aabb.base, this.base)
+  vec3.sub(max, max, min)
+
+  return new AABB(min, max)
+}
+
+proto.intersects = function(aabb) {
+  if(aabb.base[0] > this.max[0]) return false
+  if(aabb.base[1] > this.max[1]) return false
+  if(aabb.base[2] > this.max[2]) return false
+  if(aabb.max[0] < this.base[0]) return false
+  if(aabb.max[1] < this.base[1]) return false
+  if(aabb.max[2] < this.base[2]) return false
+
+  return true
+}
+
+proto.union = function(aabb) {
+  if(!this.intersects(aabb)) return null
+
+  var base_x = Math.max(aabb.base[0], this.base[0])
+    , base_y = Math.max(aabb.base[1], this.base[1])
+    , base_z = Math.max(aabb.base[2], this.base[2])
+    , max_x = Math.min(aabb.max[0], this.max[0])
+    , max_y = Math.min(aabb.max[1], this.max[1])
+    , max_z = Math.min(aabb.max[2], this.max[2])
+
+  return new AABB([base_x, base_y, base_z], [max_x - base_x, max_y - base_y, max_z - base_z])
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/aabb-3d/index.js","/../../node_modules/aabb-3d")
+},{"gl-matrix":16,"__browserify_process":1}],17:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict"
 
 var EPSILON = 1e-8
 
@@ -8289,7 +8145,7 @@ function traceRay(voxels, origin, direction, max_d, hit_pos, hit_norm) {
 
 module.exports = traceRay
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-raycast/raycast.js","/../../node_modules/voxel-engine/node_modules/voxel-raycast")
-},{"__browserify_process":1}],17:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = control
+},{"__browserify_process":1}],18:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = control
 
 var Stream = require('stream').Stream
 
@@ -8572,7 +8428,7 @@ function clamp(value, to) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-control/index.js","/../../node_modules/voxel-engine/node_modules/voxel-control")
-},{"stream":18,"__browserify_process":1}],19:[function(require,module,exports){(function(process,global,__filename,__dirname){var THREE, temporaryPosition, temporaryVector
+},{"stream":19,"__browserify_process":1}],20:[function(require,module,exports){(function(process,global,__filename,__dirname){var THREE, temporaryPosition, temporaryVector
 
 module.exports = function(three, opts) {
   temporaryPosition = new three.Vector3
@@ -8659,7 +8515,7 @@ View.prototype.appendTo = function(element) {
   this.resizeWindow(this.width,this.height)
 }
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-view/index.js","/../../node_modules/voxel-engine/node_modules/voxel-view")
-},{"__browserify_process":1}],20:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = inherits
+},{"__browserify_process":1}],21:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = inherits
 
 function inherits (c, p, proto) {
   proto = proto || {}
@@ -8690,7 +8546,7 @@ function inherits (c, p, proto) {
 //new Child
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/inherits/inherits.js","/../../node_modules/voxel-engine/node_modules/inherits")
-},{"__browserify_process":1}],21:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = raf
+},{"__browserify_process":1}],22:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = raf
 
 var EE = require('events').EventEmitter
   , global = typeof window === 'undefined' ? this : window
@@ -8737,7 +8593,7 @@ raf.polyfill = _raf
 raf.now = function() { return Date.now() }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/raf/index.js","/../../node_modules/voxel-engine/node_modules/raf")
-},{"events":11,"__browserify_process":1}],22:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = function(field, tilesize, dimensions, offset) {
+},{"events":11,"__browserify_process":1}],23:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = function(field, tilesize, dimensions, offset) {
   dimensions = dimensions || [ 
     Math.sqrt(field.length) >> 0
   , Math.sqrt(field.length) >> 0
@@ -8826,7 +8682,7 @@ raf.now = function() { return Date.now() }
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/collide-3d-tilemap/index.js","/../../node_modules/voxel-engine/node_modules/collide-3d-tilemap")
-},{"__browserify_process":1}],23:[function(require,module,exports){(function(process,global,__filename,__dirname){
+},{"__browserify_process":1}],24:[function(require,module,exports){(function(process,global,__filename,__dirname){
 var window = window || {};
 var self = self || {};
 /**
@@ -45316,106 +45172,7 @@ if (typeof exports !== 'undefined') {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/three/three.js","/../../node_modules/voxel-engine/node_modules/three")
-},{"__browserify_process":1}],10:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = AABB
-
-var vec3 = require('gl-matrix').vec3
-
-function AABB(pos, vec) {
-  if(!(this instanceof AABB)) {
-    return new AABB(pos, vec)
-  }
-
-  this.base = pos
-  this.vec = vec
-
-  this.mag = vec3.length(this.vec)
-
-  this.max = vec3.create()
-  vec3.add(this.max, this.base, this.vec)
-}
-
-var cons = AABB
-  , proto = cons.prototype
-
-proto.width = function() {
-  return this.vec[0]
-}
-
-proto.height = function() {
-  return this.vec[1]
-}
-
-proto.depth = function() {
-  return this.vec[2]
-}
-
-proto.x0 = function() {
-  return this.base[0]
-}
-
-proto.y0 = function() {
-  return this.base[1]
-}
-
-proto.z0 = function() {
-  return this.base[2]
-}
-
-proto.x1 = function() {
-  return this.max[0]
-}
-
-proto.y1 = function() {
-  return this.max[1]
-}
-
-proto.z1 = function() {
-  return this.max[2]
-}
-
-proto.translate = function(by) {
-  vec3.add(this.max, this.max, by)
-  vec3.add(this.base, this.base, by)
-  return this
-}
-
-proto.expand = function(aabb) {
-  var max = vec3.create()
-    , min = vec3.create()
-
-  vec3.max(max, aabb.max, this.max)
-  vec3.min(min, aabb.base, this.base)
-  vec3.sub(max, max, min)
-
-  return new AABB(min, max)
-}
-
-proto.intersects = function(aabb) {
-  if(aabb.base[0] > this.max[0]) return false
-  if(aabb.base[1] > this.max[1]) return false
-  if(aabb.base[2] > this.max[2]) return false
-  if(aabb.max[0] < this.base[0]) return false
-  if(aabb.max[1] < this.base[1]) return false
-  if(aabb.max[2] < this.base[2]) return false
-
-  return true
-}
-
-proto.union = function(aabb) {
-  if(!this.intersects(aabb)) return null
-
-  var base_x = Math.max(aabb.base[0], this.base[0])
-    , base_y = Math.max(aabb.base[1], this.base[1])
-    , base_z = Math.max(aabb.base[2], this.base[2])
-    , max_x = Math.min(aabb.max[0], this.max[0])
-    , max_y = Math.min(aabb.max[1], this.max[1])
-    , max_z = Math.min(aabb.max[2], this.max[2])
-
-  return new AABB([base_x, base_y, base_z], [max_x - base_x, max_y - base_y, max_z - base_z])
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/aabb-3d/index.js","/../../node_modules/aabb-3d")
-},{"gl-matrix":24,"__browserify_process":1}],25:[function(require,module,exports){(function(process,global,__filename,__dirname){/**
+},{"__browserify_process":1}],25:[function(require,module,exports){(function(process,global,__filename,__dirname){/**
  * @fileoverview gl-matrix - High performance matrix and vector operations
  * @author Brandon Jones
  * @author Colin MacKenzie IV
@@ -48488,6 +48245,88 @@ if(typeof(exports) !== 'undefined') {
 })();
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/gl-matrix/dist/gl-matrix.js","/../../node_modules/voxel-engine/node_modules/gl-matrix/dist")
+},{"__browserify_process":1}],26:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = pin
+
+var pins = {}
+  , stack_holder = {}
+  , pin_holder
+
+function make_pin_for(name, obj) {
+  var container = document.createElement('div')
+    , header = document.createElement('h4')
+    , body = document.createElement('pre')
+
+  container.style.background = 'white'
+  container.style.marginBottom = '4px'
+  container.appendChild(header)
+  container.appendChild(body)
+  header.textContents = header.innerText = obj && obj.repr ? obj.repr() : name
+  body.style.padding = '8px'
+
+
+  if(!pin_holder) {
+    pin_holder = document.createElement('div')
+    pin_holder.style.position = 'absolute'
+    pin_holder.style.top =
+    pin_holder.style.right = '4px'
+
+    document.body.appendChild(pin_holder)
+  }
+
+  pin_holder.appendChild(container)
+
+  return (pins[name] = pins[name] || []).push({body: body, last: -Infinity, for_object: obj}), pins[name]
+}
+
+function update_pin(item, into, retain, depth) {
+  if(!retain) into.innerHTML = ''
+  if(depth > 1) return
+  depth = depth || 0
+
+  switch(typeof item) {
+    case 'number': into.innerText += item.toFixed(3); break
+    case 'string': into.innerText += '"'+item+'"'; break
+    case 'undefined':
+    case 'object':
+      if(item) {
+        for(var key in item) if(item.hasOwnProperty(key)) {
+          into.innerText += key +':'
+          update_pin(item[key], into, true, depth+1)
+          into.innerText += '\n'
+        } 
+        break
+      }
+    case 'boolean': into.innerText += ''+item; break
+  }  
+}
+
+function pin(item, every, obj, name) {
+  if(!name) Error.captureStackTrace(stack_holder)
+  var location = name || stack_holder.stack.split('\n').slice(2)[0].replace(/^\s+at /g, '')
+    , target = pins[location] || make_pin_for(location, obj)
+    , now = Date.now()
+    , every = every || 0
+
+  if(arguments.length < 3) target = target[0]
+  else {
+    for(var i = 0, len = target.length; i < len; ++i) {
+    if(target[i].for_object === obj) {
+      target = target[i]
+      break   
+    }
+  }
+    if(i === len) {
+      pins[location].push(target = make_pin_for(location, obj))
+    }
+  }
+
+  if(now - target.last > every) {
+    update_pin(item, target.body)
+    target.last = now 
+  }
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/pin-it/index.js","/../../node_modules/voxel-engine/node_modules/pin-it")
 },{"__browserify_process":1}],6:[function(require,module,exports){(function(process,global,__filename,__dirname){var voxel = require('voxel')
 var voxelMesh = require('voxel-mesh')
 var voxelChunks = require('voxel-chunks')
@@ -49115,337 +48954,238 @@ Game.prototype.destroy = function() {
   clearInterval(this.timer)
 }
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/index.js","/../../node_modules/voxel-engine")
-},{"path":7,"events":11,"./lib/stats":12,"./lib/detector":13,"voxel-mesh":26,"voxel-chunks":27,"voxel-raycast":16,"voxel":28,"voxel-control":17,"voxel-view":19,"inherits":20,"three":23,"interact":29,"raf":21,"spatial-events":30,"collide-3d-tilemap":22,"gl-matrix":25,"kb-controls":31,"voxel-physical":32,"pin-it":33,"voxel-texture":34,"voxel-region-change":35,"aabb-3d":10,"__browserify_process":1}],33:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = pin
+},{"path":10,"events":11,"./lib/stats":12,"./lib/detector":13,"voxel":27,"voxel-mesh":28,"voxel-chunks":29,"voxel-raycast":17,"voxel-control":18,"voxel-view":20,"three":24,"inherits":21,"interact":30,"raf":22,"collide-3d-tilemap":23,"gl-matrix":25,"spatial-events":31,"kb-controls":32,"voxel-physical":33,"pin-it":26,"voxel-texture":34,"voxel-region-change":35,"aabb-3d":9,"__browserify_process":1}],14:[function(require,module,exports){(function(process,global,__filename,__dirname){// incidentally, does shrubs too :-)
+var Treelib = function(tree) {
+	var self = {};
+	if (tree === undefined) 
+		tree = {};
+	var currentBranch = {};
+	var config = {};
+	config.historyWindow = 50;	
+	var history = [];
+	var setCurrentBranch = function(list) {
+		var branch = tree; 
+		var i = 0;
+		for (i = 0; i < list.length; i++) {
+			if (branch[list[i]] !== undefined) {
+				branch = branch[list[i]];
+			} else {
+				break;
+			}
+		}
+		currentBranch.branch = branch;
+		currentBranch.leaf = list[list.length-1];
+	};
+	var checkPath_array = function(list) {
+		var branch = tree; 
+		var depth = 0;
+		var validPath = [];
+		var i = 0;
+		for (i = 0; i < list.length; i++) {
+			if (branch.hasOwnProperty(list[i])) {
+				validPath.push(list[i]);
+			}
+			if (branch[list[i]] !== undefined) {
+				branch = branch[list[i]];
+			} else {
+				break;
+			}
+		}
+		return {depth:validPath.length,validPath:validPath}
+	};
+	var checkPath_string = function(path) {
+		var list = path.split('/');
+		return checkPath_array(list.slice(0));
+	};
+	var deletePath_array = function(list) {
+		var branch = tree;
+		
+	};
+	var createPath = function(list,obj) {
+		var newobj = {};
+		if (list.length == 0) {
+			return obj;
+		} else if (list.length > 0) {
+			newobj[list[0]] = obj;
+			list.shift();   
+			return createPath(list,newobj);
+		}       
+	};
+	var addHistory = function(obj) {
+		history.push(obj);
+		if (history.length == config.historyWindow) {
+			history.shift();
+		}
+	};
+	var addPath_array = function(list) {
+		var newPath = createPath(list.slice(0).reverse());
+		addHistory(newPath);	
+		merge(newPath,tree);	
+		setCurrentBranch(list);
+	};
+	var addPath_string = function(path) {
+		var list = path.split('/');
+		addPath_array(list.slice(0));
+	};
+	var setValue = function(val) {
+		currentBranch.branch[currentBranch.leaf] = val;
+		currentBranch.val = val;
+		addHistory(currentBranch);
+	};
+	var getValue_string = function(path) {
+		var list = path.split('/');
+		return getValue_array(list.slice(0));	
+	};
+	var getValue_array = function(list) {
+		var result = checkPath_array(list);
+		if (result.validPath.length < list.length) {
+			return undefined
+		}	
+		var branch = tree;
+		for (i = 0; i < list.length; i++) {
+			branch = branch[list[i]];
+		}
+		return branch;
+	};
+	var merge = function (from,to) {
+		Object.keys(from).forEach(function (key) {
+			if ((to !== undefined) && (to[key] !== undefined)) {
+				if (from[key] !== undefined) 
+					merge(from[key], to[key])	
+			} else if (to !== undefined)
+				to[key] = from[key];
+		});
+	};
+	var blend = function(obj1,obj2) {
+		merge(obj1,obj2);
+		merge(obj2,obj1);
+	};
+	var clearValue_string = function(path) {
+		var list = path.split('/');
+		clearValue_array(list);
+	};
+	var clearValue_array = function(list) {
+		var result = checkPath_array(list);		
+		var branch = tree;
+		var i = 0;
+		for (i = 0; i < list.length; i++) {
+			if (i < (list.length-1))
+			branch = branch[list[i]];
+		}
+		branch[list[i-1]] = undefined;
+	};
+	self.add = function(path) {
+		if (typeof path == 'string') {
+			addPath_string(path);
+		}
+		else if (Array.isArray(path)) {
+			addPath_array(path);
+		}
+		return self;
+	};
+	self.clearValue = function(path) {
+		if (typeof path == 'string') {
+			clearValue_string(path);
+		}
+		else if (Array.isArray(path)) {
+			clearValue_array(path);
+		}
+		return self;
+	};
+	self.createPath = function(path,obj) {
+		var obj = {};
+		createPath(path.slice(0).reverse(),obj);
+		return self;
+	};
+	self.setValue = function(val) {
+		setValue(val);
+		return self;
+	};
+	self.getValue = function(path) {
+		if (typeof path == 'string') {
+			return getValue_string(path);
+		}
+		else if (Array.isArray(path)) {
+			return getValue_array(path);
+		}
+	};
+	self.path = function (path) {
+		this.add(path);
+		return self;
+	};
+	self.setConfig = function(obj) {
+		for (var i in obj) {
+			config[i] = obj[i];
+		}
+	}
+	self.checkPath = function(path) {
+		if (typeof path == 'string') 
+			return checkPath_string(path)
+		else if (Array.isArray(path))
+			return checkPath_array(path)
+	};
+	self.show = function() {
+		console.log(tree);
+		return self;
+	};
+	self.tree = function() {
+		return tree;
+	};
+	self.clear = function() {
+		tree = {};
+		return self;
+	};
+	self.history = function() {
+		return history;
+	};
+	return self;
+};
+exports = module.exports = Treelib;
 
-var pins = {}
-  , stack_holder = {}
-  , pin_holder
-
-function make_pin_for(name, obj) {
-  var container = document.createElement('div')
-    , header = document.createElement('h4')
-    , body = document.createElement('pre')
-
-  container.style.background = 'white'
-  container.style.marginBottom = '4px'
-  container.appendChild(header)
-  container.appendChild(body)
-  header.textContents = header.innerText = obj && obj.repr ? obj.repr() : name
-  body.style.padding = '8px'
-
-
-  if(!pin_holder) {
-    pin_holder = document.createElement('div')
-    pin_holder.style.position = 'absolute'
-    pin_holder.style.top =
-    pin_holder.style.right = '4px'
-
-    document.body.appendChild(pin_holder)
-  }
-
-  pin_holder.appendChild(container)
-
-  return (pins[name] = pins[name] || []).push({body: body, last: -Infinity, for_object: obj}), pins[name]
-}
-
-function update_pin(item, into, retain, depth) {
-  if(!retain) into.innerHTML = ''
-  if(depth > 1) return
-  depth = depth || 0
-
-  switch(typeof item) {
-    case 'number': into.innerText += item.toFixed(3); break
-    case 'string': into.innerText += '"'+item+'"'; break
-    case 'undefined':
-    case 'object':
-      if(item) {
-        for(var key in item) if(item.hasOwnProperty(key)) {
-          into.innerText += key +':'
-          update_pin(item[key], into, true, depth+1)
-          into.innerText += '\n'
-        } 
-        break
-      }
-    case 'boolean': into.innerText += ''+item; break
-  }  
-}
-
-function pin(item, every, obj, name) {
-  if(!name) Error.captureStackTrace(stack_holder)
-  var location = name || stack_holder.stack.split('\n').slice(2)[0].replace(/^\s+at /g, '')
-    , target = pins[location] || make_pin_for(location, obj)
-    , now = Date.now()
-    , every = every || 0
-
-  if(arguments.length < 3) target = target[0]
-  else {
-    for(var i = 0, len = target.length; i < len; ++i) {
-    if(target[i].for_object === obj) {
-      target = target[i]
-      break   
-    }
-  }
-    if(i === len) {
-      pins[location].push(target = make_pin_for(location, obj))
-    }
-  }
-
-  if(now - target.last > every) {
-    update_pin(item, target.body)
-    target.last = now 
-  }
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/pin-it/index.js","/../../node_modules/voxel-engine/node_modules/pin-it")
-},{"__browserify_process":1}],28:[function(require,module,exports){(function(process,global,__filename,__dirname){var chunker = require('./chunker')
-
-module.exports = function(opts) {
-  if (!opts.generateVoxelChunk) opts.generateVoxelChunk = function(low, high) {
-    return generate(low, high, module.exports.generator['Valley'])
-  }
-  return chunker(opts)
-}
-
-module.exports.meshers = {
-  culled: require('./meshers/culled').mesher,
-  greedy: require('./meshers/greedy').mesher,
-  monotone: require('./meshers/monotone').mesher,
-  stupid: require('./meshers/stupid').mesher
-}
-
-module.exports.Chunker = chunker.Chunker
-module.exports.geometry = {}
-module.exports.generator = {}
-module.exports.generate = generate
-
-// from https://github.com/mikolalysenko/mikolalysenko.github.com/blob/master/MinecraftMeshes2/js/testdata.js#L4
-function generate(l, h, f, game) {
-  var d = [ h[0]-l[0], h[1]-l[1], h[2]-l[2] ]
-  var v = new Int8Array(d[0]*d[1]*d[2])
-  var n = 0
-  for(var k=l[2]; k<h[2]; ++k)
-  for(var j=l[1]; j<h[1]; ++j)
-  for(var i=l[0]; i<h[0]; ++i, ++n) {
-    v[n] = f(i,j,k,n,game)
-  }
-  return {voxels:v, dims:d}
-}
-
-// shape and terrain generator functions
-module.exports.generator['Sphere'] = function(i,j,k) {
-  return i*i+j*j+k*k <= 16*16 ? 1 : 0
-}
-
-module.exports.generator['Noise'] = function(i,j,k) {
-  return Math.random() < 0.1 ? Math.random() * 0xffffff : 0;
-}
-
-module.exports.generator['Dense Noise'] = function(i,j,k) {
-  return Math.round(Math.random() * 0xffffff);
-}
-
-module.exports.generator['Checker'] = function(i,j,k) {
-  return !!((i+j+k)&1) ? (((i^j^k)&2) ? 1 : 0xffffff) : 0;
-}
-
-module.exports.generator['Hill'] = function(i,j,k) {
-  return j <= 16 * Math.exp(-(i*i + k*k) / 64) ? 1 : 0;
-}
-
-module.exports.generator['Valley'] = function(i,j,k) {
-  return j <= (i*i + k*k) * 31 / (32*32*2) + 1 ? 1 : 0;
-}
-
-module.exports.generator['Hilly Terrain'] = function(i,j,k) {
-  var h0 = 3.0 * Math.sin(Math.PI * i / 12.0 - Math.PI * k * 0.1) + 27;    
-  if(j > h0+1) {
-    return 0;
-  }
-  if(h0 <= j) {
-    return 1;
-  }
-  var h1 = 2.0 * Math.sin(Math.PI * i * 0.25 - Math.PI * k * 0.3) + 20;
-  if(h1 <= j) {
-    return 2;
-  }
-  if(2 < j) {
-    return Math.random() < 0.1 ? 0x222222 : 0xaaaaaa;
-  }
-  return 3;
-}
-
-module.exports.scale = function ( x, fromLow, fromHigh, toLow, toHigh ) {
-  return ( x - fromLow ) * ( toHigh - toLow ) / ( fromHigh - fromLow ) + toLow
-}
-
-// convenience function that uses the above functions to prebake some simple voxel geometries
-module.exports.generateExamples = function() {
-  return {
-    'Sphere': generate([-16,-16,-16], [16,16,16], module.exports.generator['Sphere']),
-    'Noise': generate([0,0,0], [16,16,16], module.exports.generator['Noise']),
-    'Dense Noise': generate([0,0,0], [16,16,16], module.exports.generator['Dense Noise']),
-    'Checker': generate([0,0,0], [8,8,8], module.exports.generator['Checker']),
-    'Hill': generate([-16, 0, -16], [16,16,16], module.exports.generator['Hill']),
-    'Valley': generate([0,0,0], [32,32,32], module.exports.generator['Valley']),
-    'Hilly Terrain': generate([0, 0, 0], [32,32,32], module.exports.generator['Hilly Terrain'])
-  }
-}
-
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/index.js","/../../node_modules/voxel-engine/node_modules/voxel")
-},{"./chunker":36,"./meshers/culled":37,"./meshers/greedy":38,"./meshers/monotone":39,"./meshers/stupid":40,"__browserify_process":1}],18:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events');
-var util = require('util');
-
-function Stream() {
-  events.EventEmitter.call(this);
-}
-util.inherits(Stream, events.EventEmitter);
-module.exports = Stream;
-// Backwards-compat with node 0.4.x
-Stream.Stream = Stream;
-
-Stream.prototype.pipe = function(dest, options) {
-  var source = this;
-
-  function ondata(chunk) {
-    if (dest.writable) {
-      if (false === dest.write(chunk) && source.pause) {
-        source.pause();
-      }
-    }
-  }
-
-  source.on('data', ondata);
-
-  function ondrain() {
-    if (source.readable && source.resume) {
-      source.resume();
-    }
-  }
-
-  dest.on('drain', ondrain);
-
-  // If the 'end' option is not supplied, dest.end() will be called when
-  // source gets the 'end' or 'close' events.  Only dest.end() once, and
-  // only when all sources have ended.
-  if (!dest._isStdio && (!options || options.end !== false)) {
-    dest._pipeCount = dest._pipeCount || 0;
-    dest._pipeCount++;
-
-    source.on('end', onend);
-    source.on('close', onclose);
-  }
-
-  var didOnEnd = false;
-  function onend() {
-    if (didOnEnd) return;
-    didOnEnd = true;
-
-    dest._pipeCount--;
-
-    // remove the listeners
-    cleanup();
-
-    if (dest._pipeCount > 0) {
-      // waiting for other incoming streams to end.
-      return;
-    }
-
-    dest.end();
-  }
-
-
-  function onclose() {
-    if (didOnEnd) return;
-    didOnEnd = true;
-
-    dest._pipeCount--;
-
-    // remove the listeners
-    cleanup();
-
-    if (dest._pipeCount > 0) {
-      // waiting for other incoming streams to end.
-      return;
-    }
-
-    dest.destroy();
-  }
-
-  // don't leave dangling pipes when there are errors.
-  function onerror(er) {
-    cleanup();
-    if (this.listeners('error').length === 0) {
-      throw er; // Unhandled stream error in pipe.
-    }
-  }
-
-  source.on('error', onerror);
-  dest.on('error', onerror);
-
-  // remove all the event listeners that were added.
-  function cleanup() {
-    source.removeListener('data', ondata);
-    dest.removeListener('drain', ondrain);
-
-    source.removeListener('end', onend);
-    source.removeListener('close', onclose);
-
-    source.removeListener('error', onerror);
-    dest.removeListener('error', onerror);
-
-    source.removeListener('end', cleanup);
-    source.removeListener('close', cleanup);
-
-    dest.removeListener('end', cleanup);
-    dest.removeListener('close', cleanup);
-  }
-
-  source.on('end', cleanup);
-  source.on('close', cleanup);
-
-  dest.on('end', cleanup);
-  dest.on('close', cleanup);
-
-  dest.emit('pipe', source);
-
-  // Allow for unix-like usage: A.pipe(B).pipe(C)
-  return dest;
+})(require("__browserify_process"),window,"/../../node_modules/memoizer/node_modules/treelib/index.js","/../../node_modules/memoizer/node_modules/treelib")
+},{"__browserify_process":1}],15:[function(require,module,exports){(function(process,global,__filename,__dirname){var getArgs = function(fn) {
+	var fnstr = fn.toString();
+	var args = fnstr.match(/function\s*\((.*?)\)\s*{/);
+	if (args === null) {
+		args = fnstr.match(/function\s*[a-zA-Z_$][0-9a-zA-Z_$]*\s*\((.*?)\)\s*{/);
+	}
+	if (args !== null) {
+		if ((args[1] !== undefined) && (args[1] != '')) {
+			var argstr = args[1];
+			return argstr.split(',').map(function(val){return val.trim()});
+		} else {
+			return [];
+		}
+	} else {
+		return undefined;
+	}
+};
+var getLastArg = function(fn) {
+	var args = getArgs(fn);
+	return args.slice(-1);
+};
+var getFirstArg = function(fn) {
+	var args = getArgs(fn);
+	return args.slice(0,1);
+};
+exports.getArgs = getArgs;
+exports.getLastArg = getLastArg;
+exports.getFirstArg = getFirstArg;
+exports.doesObjectCallMethod = function(fn,objstr,methodstr) {
+	var fnstr = fn.toString();
+	// we check here because there objstr is usually
+	// set from getLastArg which may return undefined
+	// on a function () with no params
+	if (objstr === undefined) { return false; }
+	var index = fnstr.indexOf(objstr + '.' + methodstr);
+	if (index > 0) {
+		return true;
+	}
+	return false;
 };
 
-})(require("__browserify_process"),window,"/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin/stream.js","/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin")
-},{"events":11,"util":41,"__browserify_process":1}],42:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = Indexer;
-
-function Indexer (opts) {
-    if (!(this instanceof Indexer)) return new Indexer(opts);
-    this.chunkSize = opts.chunkSize;
-    this.cubeSize = opts.cubeSize;
-}
-
-Indexer.prototype.chunk = function (pos) {
-    var chunkSize = this.chunkSize;
-    var cubeSize = this.cubeSize;
-    var cx = pos.x / cubeSize / chunkSize;
-    var cy = pos.y / cubeSize / chunkSize;
-    var cz = pos.z / cubeSize / chunkSize;
-    var ckey = [ Math.floor(cx), Math.floor(cy), Math.floor(cz) ];
-    return ckey.join('|');
-};
-
-Indexer.prototype.voxel = function (pos) {
-    var size = this.chunkSize;
-    var cubeSize = this.cubeSize;
-    var vx = (size + Math.floor(pos.x / cubeSize) % size) % size;
-    var vy = (size + Math.floor(pos.y / cubeSize) % size) % size;
-    var vz = (size + Math.floor(pos.z / cubeSize) % size) % size;
-    var x = Math.abs(vx);
-    var y = Math.abs(vy);
-    var z = Math.abs(vz);
-    return x + y*size + z*size*size;
-};
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/lib/indexer.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/lib")
-},{"__browserify_process":1}],24:[function(require,module,exports){(function(process,global,__filename,__dirname){/**
+})(require("__browserify_process"),window,"/../../node_modules/memoizer/node_modules/textual/index.js","/../../node_modules/memoizer/node_modules/textual")
+},{"__browserify_process":1}],16:[function(require,module,exports){(function(process,global,__filename,__dirname){/**
  * @fileoverview gl-matrix - High performance matrix and vector operations
  * @author Brandon Jones
  * @author Colin MacKenzie IV
@@ -52518,59 +52258,224 @@ if(typeof(exports) !== 'undefined') {
 })();
 
 })(require("__browserify_process"),window,"/../../node_modules/aabb-3d/node_modules/gl-matrix/dist/gl-matrix.js","/../../node_modules/aabb-3d/node_modules/gl-matrix/dist")
-},{"__browserify_process":1}],37:[function(require,module,exports){(function(process,global,__filename,__dirname){//Naive meshing (with face culling)
-function CulledMesh(volume, dims) {
-  //Precalculate direction vectors for convenience
-  var dir = new Array(3);
-  for(var i=0; i<3; ++i) {
-    dir[i] = [[0,0,0], [0,0,0]];
-    dir[i][0][(i+1)%3] = 1;
-    dir[i][1][(i+2)%3] = 1;
+},{"__browserify_process":1}],27:[function(require,module,exports){(function(process,global,__filename,__dirname){var chunker = require('./chunker')
+
+module.exports = function(opts) {
+  if (!opts.generateVoxelChunk) opts.generateVoxelChunk = function(low, high) {
+    return generate(low, high, module.exports.generator['Valley'])
   }
-  //March over the volume
-  var vertices = []
-    , faces = []
-    , x = [0,0,0]
-    , B = [[false,true]    //Incrementally update bounds (this is a bit ugly)
-          ,[false,true]
-          ,[false,true]]
-    , n = -dims[0]*dims[1];
-  for(           B[2]=[false,true],x[2]=-1; x[2]<dims[2]; B[2]=[true,(++x[2]<dims[2]-1)])
-  for(n-=dims[0],B[1]=[false,true],x[1]=-1; x[1]<dims[1]; B[1]=[true,(++x[1]<dims[1]-1)])
-  for(n-=1,      B[0]=[false,true],x[0]=-1; x[0]<dims[0]; B[0]=[true,(++x[0]<dims[0]-1)], ++n) {
-    //Read current voxel and 3 neighboring voxels using bounds check results
-    var p =   (B[0][0] && B[1][0] && B[2][0]) ? volume[n]                 : 0
-      , b = [ (B[0][1] && B[1][0] && B[2][0]) ? volume[n+1]               : 0
-            , (B[0][0] && B[1][1] && B[2][0]) ? volume[n+dims[0]]         : 0
-            , (B[0][0] && B[1][0] && B[2][1]) ? volume[n+dims[0]*dims[1]] : 0
-          ];
-    //Generate faces
-    for(var d=0; d<3; ++d)
-    if((!!p) !== (!!b[d])) {
-      var s = !p ? 1 : 0;
-      var t = [x[0],x[1],x[2]]
-        , u = dir[d][s]
-        , v = dir[d][s^1];
-      ++t[d];
-      
-      var vertex_count = vertices.length;
-      vertices.push([t[0],           t[1],           t[2]          ]);
-      vertices.push([t[0]+u[0],      t[1]+u[1],      t[2]+u[2]     ]);
-      vertices.push([t[0]+u[0]+v[0], t[1]+u[1]+v[1], t[2]+u[2]+v[2]]);
-      vertices.push([t[0]     +v[0], t[1]     +v[1], t[2]     +v[2]]);
-      faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, s ? b[d] : p]);
+  return chunker(opts)
+}
+
+module.exports.meshers = {
+  culled: require('./meshers/culled').mesher,
+  greedy: require('./meshers/greedy').mesher,
+  monotone: require('./meshers/monotone').mesher,
+  stupid: require('./meshers/stupid').mesher
+}
+
+module.exports.Chunker = chunker.Chunker
+module.exports.geometry = {}
+module.exports.generator = {}
+module.exports.generate = generate
+
+// from https://github.com/mikolalysenko/mikolalysenko.github.com/blob/master/MinecraftMeshes2/js/testdata.js#L4
+function generate(l, h, f, game) {
+  var d = [ h[0]-l[0], h[1]-l[1], h[2]-l[2] ]
+  var v = new Int8Array(d[0]*d[1]*d[2])
+  var n = 0
+  for(var k=l[2]; k<h[2]; ++k)
+  for(var j=l[1]; j<h[1]; ++j)
+  for(var i=l[0]; i<h[0]; ++i, ++n) {
+    v[n] = f(i,j,k,n,game)
+  }
+  return {voxels:v, dims:d}
+}
+
+// shape and terrain generator functions
+module.exports.generator['Sphere'] = function(i,j,k) {
+  return i*i+j*j+k*k <= 16*16 ? 1 : 0
+}
+
+module.exports.generator['Noise'] = function(i,j,k) {
+  return Math.random() < 0.1 ? Math.random() * 0xffffff : 0;
+}
+
+module.exports.generator['Dense Noise'] = function(i,j,k) {
+  return Math.round(Math.random() * 0xffffff);
+}
+
+module.exports.generator['Checker'] = function(i,j,k) {
+  return !!((i+j+k)&1) ? (((i^j^k)&2) ? 1 : 0xffffff) : 0;
+}
+
+module.exports.generator['Hill'] = function(i,j,k) {
+  return j <= 16 * Math.exp(-(i*i + k*k) / 64) ? 1 : 0;
+}
+
+module.exports.generator['Valley'] = function(i,j,k) {
+  return j <= (i*i + k*k) * 31 / (32*32*2) + 1 ? 1 : 0;
+}
+
+module.exports.generator['Hilly Terrain'] = function(i,j,k) {
+  var h0 = 3.0 * Math.sin(Math.PI * i / 12.0 - Math.PI * k * 0.1) + 27;    
+  if(j > h0+1) {
+    return 0;
+  }
+  if(h0 <= j) {
+    return 1;
+  }
+  var h1 = 2.0 * Math.sin(Math.PI * i * 0.25 - Math.PI * k * 0.3) + 20;
+  if(h1 <= j) {
+    return 2;
+  }
+  if(2 < j) {
+    return Math.random() < 0.1 ? 0x222222 : 0xaaaaaa;
+  }
+  return 3;
+}
+
+module.exports.scale = function ( x, fromLow, fromHigh, toLow, toHigh ) {
+  return ( x - fromLow ) * ( toHigh - toLow ) / ( fromHigh - fromLow ) + toLow
+}
+
+// convenience function that uses the above functions to prebake some simple voxel geometries
+module.exports.generateExamples = function() {
+  return {
+    'Sphere': generate([-16,-16,-16], [16,16,16], module.exports.generator['Sphere']),
+    'Noise': generate([0,0,0], [16,16,16], module.exports.generator['Noise']),
+    'Dense Noise': generate([0,0,0], [16,16,16], module.exports.generator['Dense Noise']),
+    'Checker': generate([0,0,0], [8,8,8], module.exports.generator['Checker']),
+    'Hill': generate([-16, 0, -16], [16,16,16], module.exports.generator['Hill']),
+    'Valley': generate([0,0,0], [32,32,32], module.exports.generator['Valley']),
+    'Hilly Terrain': generate([0, 0, 0], [32,32,32], module.exports.generator['Hilly Terrain'])
+  }
+}
+
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/index.js","/../../node_modules/voxel-engine/node_modules/voxel")
+},{"./chunker":36,"./meshers/culled":37,"./meshers/greedy":38,"./meshers/monotone":39,"./meshers/stupid":40,"__browserify_process":1}],19:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events');
+var util = require('util');
+
+function Stream() {
+  events.EventEmitter.call(this);
+}
+util.inherits(Stream, events.EventEmitter);
+module.exports = Stream;
+// Backwards-compat with node 0.4.x
+Stream.Stream = Stream;
+
+Stream.prototype.pipe = function(dest, options) {
+  var source = this;
+
+  function ondata(chunk) {
+    if (dest.writable) {
+      if (false === dest.write(chunk) && source.pause) {
+        source.pause();
+      }
     }
   }
-  return { vertices:vertices, faces:faces };
-}
+
+  source.on('data', ondata);
+
+  function ondrain() {
+    if (source.readable && source.resume) {
+      source.resume();
+    }
+  }
+
+  dest.on('drain', ondrain);
+
+  // If the 'end' option is not supplied, dest.end() will be called when
+  // source gets the 'end' or 'close' events.  Only dest.end() once, and
+  // only when all sources have ended.
+  if (!dest._isStdio && (!options || options.end !== false)) {
+    dest._pipeCount = dest._pipeCount || 0;
+    dest._pipeCount++;
+
+    source.on('end', onend);
+    source.on('close', onclose);
+  }
+
+  var didOnEnd = false;
+  function onend() {
+    if (didOnEnd) return;
+    didOnEnd = true;
+
+    dest._pipeCount--;
+
+    // remove the listeners
+    cleanup();
+
+    if (dest._pipeCount > 0) {
+      // waiting for other incoming streams to end.
+      return;
+    }
+
+    dest.end();
+  }
 
 
-if(exports) {
-  exports.mesher = CulledMesh;
-}
+  function onclose() {
+    if (didOnEnd) return;
+    didOnEnd = true;
 
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/meshers/culled.js","/../../node_modules/voxel-engine/node_modules/voxel/meshers")
-},{"__browserify_process":1}],38:[function(require,module,exports){(function(process,global,__filename,__dirname){var GreedyMesh = (function() {
+    dest._pipeCount--;
+
+    // remove the listeners
+    cleanup();
+
+    if (dest._pipeCount > 0) {
+      // waiting for other incoming streams to end.
+      return;
+    }
+
+    dest.destroy();
+  }
+
+  // don't leave dangling pipes when there are errors.
+  function onerror(er) {
+    cleanup();
+    if (this.listeners('error').length === 0) {
+      throw er; // Unhandled stream error in pipe.
+    }
+  }
+
+  source.on('error', onerror);
+  dest.on('error', onerror);
+
+  // remove all the event listeners that were added.
+  function cleanup() {
+    source.removeListener('data', ondata);
+    dest.removeListener('drain', ondrain);
+
+    source.removeListener('end', onend);
+    source.removeListener('close', onclose);
+
+    source.removeListener('error', onerror);
+    dest.removeListener('error', onerror);
+
+    source.removeListener('end', cleanup);
+    source.removeListener('close', cleanup);
+
+    dest.removeListener('end', cleanup);
+    dest.removeListener('close', cleanup);
+  }
+
+  source.on('end', cleanup);
+  source.on('close', cleanup);
+
+  dest.on('end', cleanup);
+  dest.on('close', cleanup);
+
+  dest.emit('pipe', source);
+
+  // Allow for unix-like usage: A.pipe(B).pipe(C)
+  return dest;
+};
+
+})(require("__browserify_process"),window,"/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin/stream.js","/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin")
+},{"events":11,"util":41,"__browserify_process":1}],38:[function(require,module,exports){(function(process,global,__filename,__dirname){var GreedyMesh = (function() {
 //Cache buffer internally
 var mask = new Int32Array(4096);
 
@@ -52687,6 +52592,58 @@ if(exports) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/meshers/greedy.js","/../../node_modules/voxel-engine/node_modules/voxel/meshers")
+},{"__browserify_process":1}],37:[function(require,module,exports){(function(process,global,__filename,__dirname){//Naive meshing (with face culling)
+function CulledMesh(volume, dims) {
+  //Precalculate direction vectors for convenience
+  var dir = new Array(3);
+  for(var i=0; i<3; ++i) {
+    dir[i] = [[0,0,0], [0,0,0]];
+    dir[i][0][(i+1)%3] = 1;
+    dir[i][1][(i+2)%3] = 1;
+  }
+  //March over the volume
+  var vertices = []
+    , faces = []
+    , x = [0,0,0]
+    , B = [[false,true]    //Incrementally update bounds (this is a bit ugly)
+          ,[false,true]
+          ,[false,true]]
+    , n = -dims[0]*dims[1];
+  for(           B[2]=[false,true],x[2]=-1; x[2]<dims[2]; B[2]=[true,(++x[2]<dims[2]-1)])
+  for(n-=dims[0],B[1]=[false,true],x[1]=-1; x[1]<dims[1]; B[1]=[true,(++x[1]<dims[1]-1)])
+  for(n-=1,      B[0]=[false,true],x[0]=-1; x[0]<dims[0]; B[0]=[true,(++x[0]<dims[0]-1)], ++n) {
+    //Read current voxel and 3 neighboring voxels using bounds check results
+    var p =   (B[0][0] && B[1][0] && B[2][0]) ? volume[n]                 : 0
+      , b = [ (B[0][1] && B[1][0] && B[2][0]) ? volume[n+1]               : 0
+            , (B[0][0] && B[1][1] && B[2][0]) ? volume[n+dims[0]]         : 0
+            , (B[0][0] && B[1][0] && B[2][1]) ? volume[n+dims[0]*dims[1]] : 0
+          ];
+    //Generate faces
+    for(var d=0; d<3; ++d)
+    if((!!p) !== (!!b[d])) {
+      var s = !p ? 1 : 0;
+      var t = [x[0],x[1],x[2]]
+        , u = dir[d][s]
+        , v = dir[d][s^1];
+      ++t[d];
+      
+      var vertex_count = vertices.length;
+      vertices.push([t[0],           t[1],           t[2]          ]);
+      vertices.push([t[0]+u[0],      t[1]+u[1],      t[2]+u[2]     ]);
+      vertices.push([t[0]+u[0]+v[0], t[1]+u[1]+v[1], t[2]+u[2]+v[2]]);
+      vertices.push([t[0]     +v[0], t[1]     +v[1], t[2]     +v[2]]);
+      faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, s ? b[d] : p]);
+    }
+  }
+  return { vertices:vertices, faces:faces };
+}
+
+
+if(exports) {
+  exports.mesher = CulledMesh;
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/meshers/culled.js","/../../node_modules/voxel-engine/node_modules/voxel/meshers")
 },{"__browserify_process":1}],39:[function(require,module,exports){(function(process,global,__filename,__dirname){"use strict";
 
 var MonotoneMesh = (function(){
@@ -52976,7 +52933,38 @@ if(exports) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/meshers/stupid.js","/../../node_modules/voxel-engine/node_modules/voxel/meshers")
-},{"__browserify_process":1}],27:[function(require,module,exports){(function(process,global,__filename,__dirname){var voxel = require('voxel');
+},{"__browserify_process":1}],42:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = Indexer;
+
+function Indexer (opts) {
+    if (!(this instanceof Indexer)) return new Indexer(opts);
+    this.chunkSize = opts.chunkSize;
+    this.cubeSize = opts.cubeSize;
+}
+
+Indexer.prototype.chunk = function (pos) {
+    var chunkSize = this.chunkSize;
+    var cubeSize = this.cubeSize;
+    var cx = pos.x / cubeSize / chunkSize;
+    var cy = pos.y / cubeSize / chunkSize;
+    var cz = pos.z / cubeSize / chunkSize;
+    var ckey = [ Math.floor(cx), Math.floor(cy), Math.floor(cz) ];
+    return ckey.join('|');
+};
+
+Indexer.prototype.voxel = function (pos) {
+    var size = this.chunkSize;
+    var cubeSize = this.cubeSize;
+    var vx = (size + Math.floor(pos.x / cubeSize) % size) % size;
+    var vy = (size + Math.floor(pos.y / cubeSize) % size) % size;
+    var vz = (size + Math.floor(pos.z / cubeSize) % size) % size;
+    var x = Math.abs(vx);
+    var y = Math.abs(vy);
+    var z = Math.abs(vz);
+    return x + y*size + z*size*size;
+};
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/lib/indexer.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/lib")
+},{"__browserify_process":1}],29:[function(require,module,exports){(function(process,global,__filename,__dirname){var voxel = require('voxel');
 var ChunkMatrix = require('./lib/chunk_matrix');
 var indexer = require('./lib/indexer');
 
@@ -53067,7 +53055,7 @@ Group.prototype.getIndex = function (pos) {
 };
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/index.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks")
-},{"./lib/chunk_matrix":43,"./lib/indexer":42,"voxel":44,"__browserify_process":1}],29:[function(require,module,exports){(function(process,global,__filename,__dirname){var lock = require('pointer-lock')
+},{"./lib/chunk_matrix":43,"./lib/indexer":42,"voxel":44,"__browserify_process":1}],30:[function(require,module,exports){(function(process,global,__filename,__dirname){var lock = require('pointer-lock')
   , drag = require('drag-stream')
   , full = require('fullscreen')
 
@@ -53174,104 +53162,7 @@ function usedrag(el) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/index.js","/../../node_modules/voxel-engine/node_modules/interact")
-},{"events":11,"stream":18,"pointer-lock":45,"drag-stream":46,"fullscreen":47,"__browserify_process":1}],31:[function(require,module,exports){(function(process,global,__filename,__dirname){var ever = require('ever')
-  , vkey = require('vkey')
-  , max = Math.max
-
-module.exports = function(el, bindings, state) {
-  if(bindings === undefined || !el.ownerDocument) {
-    state = bindings
-    bindings = el
-    el = this.document.body
-  }
-
-  var ee = ever(el)
-    , measured = {}
-    , enabled = true
-
-  state = state || {}
-
-  // always initialize the state.
-  for(var key in bindings) {
-    if(bindings[key] === 'enabled' ||
-       bindings[key] === 'enable' ||
-       bindings[key] === 'disable' ||
-       bindings[key] === 'destroy') {
-      throw new Error(bindings[key]+' is reserved')
-    }
-    state[bindings[key]] = 0
-    measured[key] = 1
-  }
-
-  ee.on('keyup', wrapped(onoff(kb, false)))
-  ee.on('keydown', wrapped(onoff(kb, true)))
-  ee.on('mouseup', wrapped(onoff(mouse, false)))
-  ee.on('mousedown', wrapped(onoff(mouse, true)))
-
-  state.enabled = function() {
-    return enabled
-  }
-
-  state.enable = enable_disable(true)
-  state.disable = enable_disable(false)
-  state.destroy = function() {
-    ee.removeAllListeners()
-  } 
-  return state
-
-  function clear() {
-    // always initialize the state.
-    for(var key in bindings) {
-      state[bindings[key]] = 0
-      measured[key] = 1
-    }
-  }
-
-  function enable_disable(on_or_off) {
-    return function() {
-      clear()
-      enabled = on_or_off
-      return this
-    }
-  }
-
-  function wrapped(fn) {
-    return function(ev) {
-      if(enabled) {
-        ev.preventDefault()
-        fn(ev)
-      } else {
-        return
-      }
-    }
-  }
-
-  function onoff(find, on_or_off) {
-    return function(ev) {
-      var key = find(ev)
-        , binding = bindings[key]
-
-      if(binding) {
-        state[binding] += on_or_off ? max(measured[key]--, 0) : -(measured[key] = 1)
-
-        if(!on_or_off && state[binding] < 0) {
-          state[binding] = 0
-        }
-      }
-    }
-  }
-
-  function mouse(ev) {
-    return '<mouse '+ev.which+'>'
-  }
-
-  function kb(ev) {
-    return vkey[ev.keyCode] || ev.char
-  }
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/index.js","/../../node_modules/voxel-engine/node_modules/kb-controls")
-},{"ever":48,"vkey":49,"__browserify_process":1}],41:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events');
+},{"events":11,"stream":19,"pointer-lock":45,"drag-stream":46,"fullscreen":47,"__browserify_process":1}],41:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events');
 
 exports.isArray = isArray;
 exports.isDate = function(obj){return Object.prototype.toString.call(obj) === '[object Date]'};
@@ -53624,7 +53515,104 @@ exports.format = function(f) {
 };
 
 })(require("__browserify_process"),window,"/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin/util.js","/../../../../../../usr/local/share/npm/lib/node_modules/browserify/node_modules/browser-resolve/builtin")
-},{"events":11,"__browserify_process":1}],45:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = pointer
+},{"events":11,"__browserify_process":1}],32:[function(require,module,exports){(function(process,global,__filename,__dirname){var ever = require('ever')
+  , vkey = require('vkey')
+  , max = Math.max
+
+module.exports = function(el, bindings, state) {
+  if(bindings === undefined || !el.ownerDocument) {
+    state = bindings
+    bindings = el
+    el = this.document.body
+  }
+
+  var ee = ever(el)
+    , measured = {}
+    , enabled = true
+
+  state = state || {}
+
+  // always initialize the state.
+  for(var key in bindings) {
+    if(bindings[key] === 'enabled' ||
+       bindings[key] === 'enable' ||
+       bindings[key] === 'disable' ||
+       bindings[key] === 'destroy') {
+      throw new Error(bindings[key]+' is reserved')
+    }
+    state[bindings[key]] = 0
+    measured[key] = 1
+  }
+
+  ee.on('keyup', wrapped(onoff(kb, false)))
+  ee.on('keydown', wrapped(onoff(kb, true)))
+  ee.on('mouseup', wrapped(onoff(mouse, false)))
+  ee.on('mousedown', wrapped(onoff(mouse, true)))
+
+  state.enabled = function() {
+    return enabled
+  }
+
+  state.enable = enable_disable(true)
+  state.disable = enable_disable(false)
+  state.destroy = function() {
+    ee.removeAllListeners()
+  } 
+  return state
+
+  function clear() {
+    // always initialize the state.
+    for(var key in bindings) {
+      state[bindings[key]] = 0
+      measured[key] = 1
+    }
+  }
+
+  function enable_disable(on_or_off) {
+    return function() {
+      clear()
+      enabled = on_or_off
+      return this
+    }
+  }
+
+  function wrapped(fn) {
+    return function(ev) {
+      if(enabled) {
+        ev.preventDefault()
+        fn(ev)
+      } else {
+        return
+      }
+    }
+  }
+
+  function onoff(find, on_or_off) {
+    return function(ev) {
+      var key = find(ev)
+        , binding = bindings[key]
+
+      if(binding) {
+        state[binding] += on_or_off ? max(measured[key]--, 0) : -(measured[key] = 1)
+
+        if(!on_or_off && state[binding] < 0) {
+          state[binding] = 0
+        }
+      }
+    }
+  }
+
+  function mouse(ev) {
+    return '<mouse '+ev.which+'>'
+  }
+
+  function kb(ev) {
+    return vkey[ev.keyCode] || ev.char
+  }
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/index.js","/../../node_modules/voxel-engine/node_modules/kb-controls")
+},{"vkey":48,"ever":49,"__browserify_process":1}],45:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = pointer
 
 pointer.available = available
 
@@ -53788,7 +53776,7 @@ function shim(el) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/pointer-lock/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/pointer-lock")
-},{"events":11,"stream":18,"__browserify_process":1}],47:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = fullscreen
+},{"events":11,"stream":19,"__browserify_process":1}],47:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = fullscreen
 fullscreen.available = available
 
 var EE = require('events').EventEmitter
@@ -53879,7 +53867,7 @@ function shim(el) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/fullscreen/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/fullscreen")
-},{"events":11,"__browserify_process":1}],26:[function(require,module,exports){(function(process,global,__filename,__dirname){var THREE = require('three')
+},{"events":11,"__browserify_process":1}],28:[function(require,module,exports){(function(process,global,__filename,__dirname){var THREE = require('three')
 
 module.exports = function(data, scaleFactor, mesher) {
   return new Mesh(data, scaleFactor, mesher)
@@ -54031,7 +54019,7 @@ Mesh.prototype.faceVertexUv = function(i) {
 ;
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-mesh/index.js","/../../node_modules/voxel-engine/node_modules/voxel-mesh")
-},{"three":23,"__browserify_process":1}],49:[function(require,module,exports){(function(process,global,__filename,__dirname){var ua = typeof window !== 'undefined' ? window.navigator.userAgent : ''
+},{"three":24,"__browserify_process":1}],48:[function(require,module,exports){(function(process,global,__filename,__dirname){var ua = typeof window !== 'undefined' ? window.navigator.userAgent : ''
   , isOSX = /OS X/.test(ua)
   , isOpera = /Opera/.test(ua)
   , maybeFirefox = !/like Gecko/.test(ua) && !isOpera
@@ -54169,7 +54157,37 @@ for(i = 112; i < 136; ++i) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/vkey/index.js","/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/vkey")
-},{"__browserify_process":1}],48:[function(require,module,exports){(function(process,global,__filename,__dirname){var EventEmitter = require('events').EventEmitter;
+},{"__browserify_process":1}],50:[function(require,module,exports){(function(process,global,__filename,__dirname){function opaque(image) {
+  var canvas, ctx
+
+  if (image.nodeName.toLowerCase() === 'img') {
+    canvas = document.createElement('canvas')
+    canvas.width = image.width
+    canvas.height = image.height
+    ctx = canvas.getContext('2d')
+    ctx.drawImage(image, 0, 0)
+  } else {
+    canvas = image
+    ctx = canvas.getContext('2d')
+  }
+
+  var imageData = ctx.getImageData(0, 0, canvas.height, canvas.width)
+    , data = imageData.data
+
+  for (var i = 3, l = data.length; i < l; i += 4)
+    if (data[i] !== 255)
+      return false
+
+  return true
+};
+
+module.exports = opaque
+module.exports.opaque = opaque
+module.exports.transparent = function(image) {
+  return !opaque(image)
+};
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-texture/node_modules/opaque/index.js","/../../node_modules/voxel-engine/node_modules/voxel-texture/node_modules/opaque")
+},{"__browserify_process":1}],49:[function(require,module,exports){(function(process,global,__filename,__dirname){var EventEmitter = require('events').EventEmitter;
 
 module.exports = function (elem) {
     return new Ever(elem);
@@ -54281,133 +54299,7 @@ Ever.typeOf = (function () {
 })();;
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever/index.js","/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever")
-},{"events":11,"./init.json":50,"./types.json":51,"__browserify_process":1}],52:[function(require,module,exports){(function(process,global,__filename,__dirname){function opaque(image) {
-  var canvas, ctx
-
-  if (image.nodeName.toLowerCase() === 'img') {
-    canvas = document.createElement('canvas')
-    canvas.width = image.width
-    canvas.height = image.height
-    ctx = canvas.getContext('2d')
-    ctx.drawImage(image, 0, 0)
-  } else {
-    canvas = image
-    ctx = canvas.getContext('2d')
-  }
-
-  var imageData = ctx.getImageData(0, 0, canvas.height, canvas.width)
-    , data = imageData.data
-
-  for (var i = 3, l = data.length; i < l; i += 4)
-    if (data[i] !== 255)
-      return false
-
-  return true
-};
-
-module.exports = opaque
-module.exports.opaque = opaque
-module.exports.transparent = function(image) {
-  return !opaque(image)
-};
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-texture/node_modules/opaque/index.js","/../../node_modules/voxel-engine/node_modules/voxel-texture/node_modules/opaque")
-},{"__browserify_process":1}],44:[function(require,module,exports){(function(process,global,__filename,__dirname){var chunker = require('./chunker')
-
-module.exports = function(opts) {
-  if (!opts.generateVoxelChunk) opts.generateVoxelChunk = function(low, high) {
-    return generate(low, high, module.exports.generator['Valley'])
-  }
-  return chunker(opts)
-}
-
-module.exports.meshers = {
-  culled: require('./meshers/culled').mesher,
-  greedy: require('./meshers/greedy').mesher,
-  monotone: require('./meshers/monotone').mesher,
-  stupid: require('./meshers/stupid').mesher
-}
-
-module.exports.Chunker = chunker.Chunker
-module.exports.geometry = {}
-module.exports.generator = {}
-module.exports.generate = generate
-
-// from https://github.com/mikolalysenko/mikolalysenko.github.com/blob/master/MinecraftMeshes2/js/testdata.js#L4
-function generate(l, h, f) {
-  var d = [ h[0]-l[0], h[1]-l[1], h[2]-l[2] ]
-  var v = new Int8Array(d[0]*d[1]*d[2])
-  var n = 0
-  for(var k=l[2]; k<h[2]; ++k)
-  for(var j=l[1]; j<h[1]; ++j)
-  for(var i=l[0]; i<h[0]; ++i, ++n) {
-    v[n] = f(i,j,k,n)
-  }
-  return {voxels:v, dims:d}
-}
-
-// shape and terrain generator functions
-module.exports.generator['Sphere'] = function(i,j,k) {
-  return i*i+j*j+k*k <= 16*16 ? 1 : 0
-}
-
-module.exports.generator['Noise'] = function(i,j,k) {
-  return Math.random() < 0.1 ? Math.random() * 0xffffff : 0;
-}
-
-module.exports.generator['Dense Noise'] = function(i,j,k) {
-  return Math.round(Math.random() * 0xffffff);
-}
-
-module.exports.generator['Checker'] = function(i,j,k) {
-  return !!((i+j+k)&1) ? (((i^j^k)&2) ? 1 : 0xffffff) : 0;
-}
-
-module.exports.generator['Hill'] = function(i,j,k) {
-  return j <= 16 * Math.exp(-(i*i + k*k) / 64) ? 1 : 0;
-}
-
-module.exports.generator['Valley'] = function(i,j,k) {
-  return j <= (i*i + k*k) * 31 / (32*32*2) + 1 ? 1 : 0;
-}
-
-module.exports.generator['Hilly Terrain'] = function(i,j,k) {
-  var h0 = 3.0 * Math.sin(Math.PI * i / 12.0 - Math.PI * k * 0.1) + 27;    
-  if(j > h0+1) {
-    return 0;
-  }
-  if(h0 <= j) {
-    return 1;
-  }
-  var h1 = 2.0 * Math.sin(Math.PI * i * 0.25 - Math.PI * k * 0.3) + 20;
-  if(h1 <= j) {
-    return 2;
-  }
-  if(2 < j) {
-    return Math.random() < 0.1 ? 0x222222 : 0xaaaaaa;
-  }
-  return 3;
-}
-
-module.exports.scale = function ( x, fromLow, fromHigh, toLow, toHigh ) {
-  return ( x - fromLow ) * ( toHigh - toLow ) / ( fromHigh - fromLow ) + toLow
-}
-
-// convenience function that uses the above functions to prebake some simple voxel geometries
-module.exports.generateExamples = function() {
-  return {
-    'Sphere': generate([-16,-16,-16], [16,16,16], module.exports.generator['Sphere']),
-    'Noise': generate([0,0,0], [16,16,16], module.exports.generator['Noise']),
-    'Dense Noise': generate([0,0,0], [16,16,16], module.exports.generator['Dense Noise']),
-    'Checker': generate([0,0,0], [8,8,8], module.exports.generator['Checker']),
-    'Hill': generate([-16, 0, -16], [16,16,16], module.exports.generator['Hill']),
-    'Valley': generate([0,0,0], [32,32,32], module.exports.generator['Valley']),
-    'Hilly Terrain': generate([0, 0, 0], [32,32,32], module.exports.generator['Hilly Terrain'])
-  }
-}
-
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/index.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel")
-},{"./chunker":53,"./meshers/culled":54,"./meshers/greedy":55,"./meshers/monotone":56,"./meshers/stupid":57,"__browserify_process":1}],34:[function(require,module,exports){(function(process,global,__filename,__dirname){var transparent = require('opaque').transparent;
+},{"events":11,"./init.json":51,"./types.json":52,"__browserify_process":1}],34:[function(require,module,exports){(function(process,global,__filename,__dirname){var transparent = require('opaque').transparent;
 
 function Texture(opts) {
   var self = this;
@@ -54623,7 +54515,103 @@ function defaults(obj) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-texture/index.js","/../../node_modules/voxel-engine/node_modules/voxel-texture")
-},{"opaque":52,"three":23,"__browserify_process":1}],50:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports={
+},{"opaque":50,"three":24,"__browserify_process":1}],44:[function(require,module,exports){(function(process,global,__filename,__dirname){var chunker = require('./chunker')
+
+module.exports = function(opts) {
+  if (!opts.generateVoxelChunk) opts.generateVoxelChunk = function(low, high) {
+    return generate(low, high, module.exports.generator['Valley'])
+  }
+  return chunker(opts)
+}
+
+module.exports.meshers = {
+  culled: require('./meshers/culled').mesher,
+  greedy: require('./meshers/greedy').mesher,
+  monotone: require('./meshers/monotone').mesher,
+  stupid: require('./meshers/stupid').mesher
+}
+
+module.exports.Chunker = chunker.Chunker
+module.exports.geometry = {}
+module.exports.generator = {}
+module.exports.generate = generate
+
+// from https://github.com/mikolalysenko/mikolalysenko.github.com/blob/master/MinecraftMeshes2/js/testdata.js#L4
+function generate(l, h, f) {
+  var d = [ h[0]-l[0], h[1]-l[1], h[2]-l[2] ]
+  var v = new Int8Array(d[0]*d[1]*d[2])
+  var n = 0
+  for(var k=l[2]; k<h[2]; ++k)
+  for(var j=l[1]; j<h[1]; ++j)
+  for(var i=l[0]; i<h[0]; ++i, ++n) {
+    v[n] = f(i,j,k,n)
+  }
+  return {voxels:v, dims:d}
+}
+
+// shape and terrain generator functions
+module.exports.generator['Sphere'] = function(i,j,k) {
+  return i*i+j*j+k*k <= 16*16 ? 1 : 0
+}
+
+module.exports.generator['Noise'] = function(i,j,k) {
+  return Math.random() < 0.1 ? Math.random() * 0xffffff : 0;
+}
+
+module.exports.generator['Dense Noise'] = function(i,j,k) {
+  return Math.round(Math.random() * 0xffffff);
+}
+
+module.exports.generator['Checker'] = function(i,j,k) {
+  return !!((i+j+k)&1) ? (((i^j^k)&2) ? 1 : 0xffffff) : 0;
+}
+
+module.exports.generator['Hill'] = function(i,j,k) {
+  return j <= 16 * Math.exp(-(i*i + k*k) / 64) ? 1 : 0;
+}
+
+module.exports.generator['Valley'] = function(i,j,k) {
+  return j <= (i*i + k*k) * 31 / (32*32*2) + 1 ? 1 : 0;
+}
+
+module.exports.generator['Hilly Terrain'] = function(i,j,k) {
+  var h0 = 3.0 * Math.sin(Math.PI * i / 12.0 - Math.PI * k * 0.1) + 27;    
+  if(j > h0+1) {
+    return 0;
+  }
+  if(h0 <= j) {
+    return 1;
+  }
+  var h1 = 2.0 * Math.sin(Math.PI * i * 0.25 - Math.PI * k * 0.3) + 20;
+  if(h1 <= j) {
+    return 2;
+  }
+  if(2 < j) {
+    return Math.random() < 0.1 ? 0x222222 : 0xaaaaaa;
+  }
+  return 3;
+}
+
+module.exports.scale = function ( x, fromLow, fromHigh, toLow, toHigh ) {
+  return ( x - fromLow ) * ( toHigh - toLow ) / ( fromHigh - fromLow ) + toLow
+}
+
+// convenience function that uses the above functions to prebake some simple voxel geometries
+module.exports.generateExamples = function() {
+  return {
+    'Sphere': generate([-16,-16,-16], [16,16,16], module.exports.generator['Sphere']),
+    'Noise': generate([0,0,0], [16,16,16], module.exports.generator['Noise']),
+    'Dense Noise': generate([0,0,0], [16,16,16], module.exports.generator['Dense Noise']),
+    'Checker': generate([0,0,0], [8,8,8], module.exports.generator['Checker']),
+    'Hill': generate([-16, 0, -16], [16,16,16], module.exports.generator['Hill']),
+    'Valley': generate([0,0,0], [32,32,32], module.exports.generator['Valley']),
+    'Hilly Terrain': generate([0, 0, 0], [32,32,32], module.exports.generator['Hilly Terrain'])
+  }
+}
+
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/index.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel")
+},{"./chunker":53,"./meshers/culled":54,"./meshers/greedy":55,"./meshers/monotone":56,"./meshers/stupid":57,"__browserify_process":1}],51:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports={
   "initEvent" : [
     "type",
     "canBubble", 
@@ -54666,7 +54654,7 @@ function defaults(obj) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever/init.json","/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever")
-},{"__browserify_process":1}],51:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports={
+},{"__browserify_process":1}],52:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports={
   "MouseEvent" : [
     "click",
     "mousedown",
@@ -54711,191 +54699,7 @@ function defaults(obj) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever/types.json","/../../node_modules/voxel-engine/node_modules/kb-controls/node_modules/ever")
-},{"__browserify_process":1}],54:[function(require,module,exports){(function(process,global,__filename,__dirname){//Naive meshing (with face culling)
-function CulledMesh(volume, dims) {
-  //Precalculate direction vectors for convenience
-  var dir = new Array(3);
-  for(var i=0; i<3; ++i) {
-    dir[i] = [[0,0,0], [0,0,0]];
-    dir[i][0][(i+1)%3] = 1;
-    dir[i][1][(i+2)%3] = 1;
-  }
-  //March over the volume
-  var vertices = []
-    , faces = []
-    , x = [0,0,0]
-    , B = [[false,true]    //Incrementally update bounds (this is a bit ugly)
-          ,[false,true]
-          ,[false,true]]
-    , n = -dims[0]*dims[1];
-  for(           B[2]=[false,true],x[2]=-1; x[2]<dims[2]; B[2]=[true,(++x[2]<dims[2]-1)])
-  for(n-=dims[0],B[1]=[false,true],x[1]=-1; x[1]<dims[1]; B[1]=[true,(++x[1]<dims[1]-1)])
-  for(n-=1,      B[0]=[false,true],x[0]=-1; x[0]<dims[0]; B[0]=[true,(++x[0]<dims[0]-1)], ++n) {
-    //Read current voxel and 3 neighboring voxels using bounds check results
-    var p =   (B[0][0] && B[1][0] && B[2][0]) ? volume[n]                 : 0
-      , b = [ (B[0][1] && B[1][0] && B[2][0]) ? volume[n+1]               : 0
-            , (B[0][0] && B[1][1] && B[2][0]) ? volume[n+dims[0]]         : 0
-            , (B[0][0] && B[1][0] && B[2][1]) ? volume[n+dims[0]*dims[1]] : 0
-          ];
-    //Generate faces
-    for(var d=0; d<3; ++d)
-    if((!!p) !== (!!b[d])) {
-      var s = !p ? 1 : 0;
-      var t = [x[0],x[1],x[2]]
-        , u = dir[d][s]
-        , v = dir[d][s^1];
-      ++t[d];
-      
-      var vertex_count = vertices.length;
-      vertices.push([t[0],           t[1],           t[2]          ]);
-      vertices.push([t[0]+u[0],      t[1]+u[1],      t[2]+u[2]     ]);
-      vertices.push([t[0]+u[0]+v[0], t[1]+u[1]+v[1], t[2]+u[2]+v[2]]);
-      vertices.push([t[0]     +v[0], t[1]     +v[1], t[2]     +v[2]]);
-      faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, s ? b[d] : p]);
-    }
-  }
-  return { vertices:vertices, faces:faces };
-}
-
-
-if(exports) {
-  exports.mesher = CulledMesh;
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers/culled.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers")
-},{"__browserify_process":1}],30:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = SpatialEventEmitter
-
-var slice = [].slice
-  , Tree = require('./tree')
-  , aabb = require('aabb-3d')
-
-function SpatialEventEmitter() {
-  this.root = null
-  this.infinites = {}
-}
-
-var cons = SpatialEventEmitter
-  , proto = cons.prototype
-
-proto.size = 16
-
-proto.addListener = 
-proto.addEventListener = 
-proto.on = function(event, bbox, listener) {
-  if(!finite(bbox)) {
-    (this.infinites[event] = this.infinites[event] || []).push({
-      bbox: bbox
-    , func: listener
-    })
-    return this
-  }
-
-  (this.root = this.root || this.create_root(bbox))
-    .add(event, bbox, listener)
-
-  return this
-}
-
-proto.once = function(event, bbox, listener) {
-  var self = this
-
-  self.on(event, bbox, function once() {
-    listener.apply(null, arguments)
-    self.remove(event, once)
-  })
-
-  return self
-}
-
-proto.removeListener =
-proto.removeEventListener =
-proto.remove = function(event, listener) {
-  if(this.root) {
-    this.root.remove(event, listener)
-  }
-
-  if(!this.infinites[event]) {
-    return this
-  }
-
-  for(var i = 0, len = this.infinites[event].length; i < len; ++i) {
-    if(this.infinites[event][i].func === listener) {
-      break
-    }
-  }
-
-  if(i !== len) {
-    this.infinites[event].splice(i, 1)
-  }
-
-  return this
-}
-
-proto.emit = function(event, bbox/*, ...args */) {
-  var args = slice.call(arguments, 2)
-
-  // support point emitting
-  if('0' in bbox) {
-    bbox = aabb(bbox, [0, 0, 0]) 
-  }
-
-  if(this.root) {
-    this.root.send(event, bbox, args)
-  }
-
-  if(!this.infinites[event]) {
-    return this
-  }
-
-  var list = this.infinites[event].slice()
-  for(var i = 0, len = list.length; i < len; ++i) {
-    if(list[i].bbox.intersects(bbox)) {
-      list[i].func.apply(null, args) 
-    }
-  }
-
-  return this
-}
-
-proto.rootSize = function(size) {
-  proto.size = size
-}
-
-proto.create_root = function(bbox) {
-  var self = this
-    , size = self.size
-    , base = [
-        Math.floor(bbox.x0() / size) * size
-      , Math.floor(bbox.y0() / size) * size
-      , Math.floor(bbox.z0() / size) * size
-      ]
-    , tree_bbox = new bbox.constructor(base, [size, size, size])
-
-  function OurTree(size, bbox) {
-    Tree.call(this, size, bbox, null)
-  }
-
-  OurTree.prototype = Object.create(Tree.prototype)
-  OurTree.prototype.constructor = OurTree
-  OurTree.prototype.grow = function(new_root) {
-    self.root = new_root
-  }
-  OurTree.prototype.min_size = size
-
-  return new OurTree(size, tree_bbox) 
-}
-
-function finite(bbox) {
-  return isFinite(bbox.x0()) &&
-         isFinite(bbox.x1()) &&
-         isFinite(bbox.y0()) &&
-         isFinite(bbox.y1()) &&
-         isFinite(bbox.z0()) &&
-         isFinite(bbox.z1())
-}
-
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/spatial-events/index.js","/../../node_modules/voxel-engine/node_modules/spatial-events")
-},{"./tree":58,"aabb-3d":10,"__browserify_process":1}],55:[function(require,module,exports){(function(process,global,__filename,__dirname){var GreedyMesh = (function() {
+},{"__browserify_process":1}],55:[function(require,module,exports){(function(process,global,__filename,__dirname){var GreedyMesh = (function() {
 //Cache buffer internally
 var mask = new Int32Array(4096);
 
@@ -55301,144 +55105,191 @@ if(exports) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers/stupid.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers")
-},{"__browserify_process":1}],36:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events')
-var inherits = require('inherits')
-
-module.exports = function(opts) {
-  return new Chunker(opts)
-}
-
-module.exports.Chunker = Chunker
-
-function Chunker(opts) {
-  this.distance = opts.chunkDistance || 2
-  this.chunkSize = opts.chunkSize || 32
-  this.cubeSize = opts.cubeSize || 25
-  this.generateVoxelChunk = opts.generateVoxelChunk
-  this.chunks = {}
-  this.meshes = {}
-
-  if (this.chunkSize & this.chunkSize-1 !== 0)
-    throw new Error('chunkSize must be a power of 2')
-  var bits = 0;
-  for (var size = this.chunkSize; size > 0; size >>= 1) bits++;
-  this.chunkBits = bits - 1;
-}
-
-inherits(Chunker, events.EventEmitter)
-
-Chunker.prototype.nearbyChunks = function(position, distance) {
-  var current = this.chunkAtPosition(position)
-  var x = current[0]
-  var y = current[1]
-  var z = current[2]
-  var dist = distance || this.distance
-  var nearby = []
-  for (var cx = (x - dist); cx !== (x + dist); ++cx) {
-    for (var cy = (y - dist); cy !== (y + dist); ++cy) {
-      for (var cz = (z - dist); cz !== (z + dist); ++cz) {
-        nearby.push([cx, cy, cz])
-      }
+},{"__browserify_process":1}],54:[function(require,module,exports){(function(process,global,__filename,__dirname){//Naive meshing (with face culling)
+function CulledMesh(volume, dims) {
+  //Precalculate direction vectors for convenience
+  var dir = new Array(3);
+  for(var i=0; i<3; ++i) {
+    dir[i] = [[0,0,0], [0,0,0]];
+    dir[i][0][(i+1)%3] = 1;
+    dir[i][1][(i+2)%3] = 1;
+  }
+  //March over the volume
+  var vertices = []
+    , faces = []
+    , x = [0,0,0]
+    , B = [[false,true]    //Incrementally update bounds (this is a bit ugly)
+          ,[false,true]
+          ,[false,true]]
+    , n = -dims[0]*dims[1];
+  for(           B[2]=[false,true],x[2]=-1; x[2]<dims[2]; B[2]=[true,(++x[2]<dims[2]-1)])
+  for(n-=dims[0],B[1]=[false,true],x[1]=-1; x[1]<dims[1]; B[1]=[true,(++x[1]<dims[1]-1)])
+  for(n-=1,      B[0]=[false,true],x[0]=-1; x[0]<dims[0]; B[0]=[true,(++x[0]<dims[0]-1)], ++n) {
+    //Read current voxel and 3 neighboring voxels using bounds check results
+    var p =   (B[0][0] && B[1][0] && B[2][0]) ? volume[n]                 : 0
+      , b = [ (B[0][1] && B[1][0] && B[2][0]) ? volume[n+1]               : 0
+            , (B[0][0] && B[1][1] && B[2][0]) ? volume[n+dims[0]]         : 0
+            , (B[0][0] && B[1][0] && B[2][1]) ? volume[n+dims[0]*dims[1]] : 0
+          ];
+    //Generate faces
+    for(var d=0; d<3; ++d)
+    if((!!p) !== (!!b[d])) {
+      var s = !p ? 1 : 0;
+      var t = [x[0],x[1],x[2]]
+        , u = dir[d][s]
+        , v = dir[d][s^1];
+      ++t[d];
+      
+      var vertex_count = vertices.length;
+      vertices.push([t[0],           t[1],           t[2]          ]);
+      vertices.push([t[0]+u[0],      t[1]+u[1],      t[2]+u[2]     ]);
+      vertices.push([t[0]+u[0]+v[0], t[1]+u[1]+v[1], t[2]+u[2]+v[2]]);
+      vertices.push([t[0]     +v[0], t[1]     +v[1], t[2]     +v[2]]);
+      faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, s ? b[d] : p]);
     }
   }
-  return nearby
+  return { vertices:vertices, faces:faces };
 }
 
-Chunker.prototype.requestMissingChunks = function(position) {
+
+if(exports) {
+  exports.mesher = CulledMesh;
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers/culled.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/meshers")
+},{"__browserify_process":1}],31:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = SpatialEventEmitter
+
+var slice = [].slice
+  , Tree = require('./tree')
+  , aabb = require('aabb-3d')
+
+function SpatialEventEmitter() {
+  this.root = null
+  this.infinites = {}
+}
+
+var cons = SpatialEventEmitter
+  , proto = cons.prototype
+
+proto.size = 16
+
+proto.addListener = 
+proto.addEventListener = 
+proto.on = function(event, bbox, listener) {
+  if(!finite(bbox)) {
+    (this.infinites[event] = this.infinites[event] || []).push({
+      bbox: bbox
+    , func: listener
+    })
+    return this
+  }
+
+  (this.root = this.root || this.create_root(bbox))
+    .add(event, bbox, listener)
+
+  return this
+}
+
+proto.once = function(event, bbox, listener) {
   var self = this
-  this.nearbyChunks(position).map(function(chunk) {
-    if (!self.chunks[chunk.join('|')]) {
-      self.emit('missingChunk', chunk)
-    }
+
+  self.on(event, bbox, function once() {
+    listener.apply(null, arguments)
+    self.remove(event, once)
   })
+
+  return self
 }
 
-Chunker.prototype.getBounds = function(x, y, z) {
-  var bits = this.chunkBits
-  var low = [x << bits, y << bits, z << bits]
-  var high = [(x+1) << bits, (y+1) << bits, (z+1) << bits]
-  return [low, high]
-}
-
-Chunker.prototype.generateChunk = function(x, y, z) {
-  var self = this
-  var bounds = this.getBounds(x, y, z)
-  var chunk = this.generateVoxelChunk(bounds[0], bounds[1], x, y, z)
-  var position = [x, y, z]
-  chunk.position = position
-  this.chunks[position.join('|')] = chunk
-  return chunk
-}
-
-Chunker.prototype.chunkAtCoordinates = function(x, y, z) {
-  var bits = this.chunkBits;
-  var cx = x >> bits;
-  var cy = y >> bits;
-  var cz = z >> bits;
-  var chunkPos = [cx, cy, cz];
-  return chunkPos;
-}
-
-Chunker.prototype.chunkAtPosition = function(position) {
-  var cubeSize = this.cubeSize;
-  var x = Math.floor(position[0] / cubeSize)
-  var y = Math.floor(position[1] / cubeSize)
-  var z = Math.floor(position[2] / cubeSize)
-  var chunkPos = this.chunkAtCoordinates(x, y, z)
-  return chunkPos
-};
-
-Chunker.prototype.voxelIndexFromCoordinates = function(x, y, z) {
-  var bits = this.chunkBits
-  var mask = (1 << bits) - 1
-  var vidx = (x & mask) + ((y & mask) << bits) + ((z & mask) << bits * 2)
-  return vidx
-}
-
-Chunker.prototype.voxelIndexFromPosition = function(pos) {
-  var v = this.voxelVector(pos)
-  return this.voxelIndex(v)
-}
-
-Chunker.prototype.voxelAtCoordinates = function(x, y, z, val) {
-  var ckey = this.chunkAtCoordinates(x, y, z).join('|')
-  var chunk = this.chunks[ckey]
-  if (!chunk) return false
-  var vidx = this.voxelIndexFromCoordinates(x, y, z)
-  var v = chunk.voxels[vidx]
-  if (typeof val !== 'undefined') {
-    chunk.voxels[vidx] = val
+proto.removeListener =
+proto.removeEventListener =
+proto.remove = function(event, listener) {
+  if(this.root) {
+    this.root.remove(event, listener)
   }
-  return v
+
+  if(!this.infinites[event]) {
+    return this
+  }
+
+  for(var i = 0, len = this.infinites[event].length; i < len; ++i) {
+    if(this.infinites[event][i].func === listener) {
+      break
+    }
+  }
+
+  if(i !== len) {
+    this.infinites[event].splice(i, 1)
+  }
+
+  return this
 }
 
-Chunker.prototype.voxelAtPosition = function(pos, val) {
-  var cubeSize = this.cubeSize;
-  var x = Math.floor(pos[0] / cubeSize)
-  var y = Math.floor(pos[1] / cubeSize)
-  var z = Math.floor(pos[2] / cubeSize)
-  var v = this.voxelAtCoordinates(x, y, z, val)
-  return v;
+proto.emit = function(event, bbox/*, ...args */) {
+  var args = slice.call(arguments, 2)
+
+  // support point emitting
+  if('0' in bbox) {
+    bbox = aabb(bbox, [0, 0, 0]) 
+  }
+
+  if(this.root) {
+    this.root.send(event, bbox, args)
+  }
+
+  if(!this.infinites[event]) {
+    return this
+  }
+
+  var list = this.infinites[event].slice()
+  for(var i = 0, len = list.length; i < len; ++i) {
+    if(list[i].bbox.intersects(bbox)) {
+      list[i].func.apply(null, args) 
+    }
+  }
+
+  return this
 }
 
-// deprecated
-Chunker.prototype.voxelIndex = function(voxelVector) {
-  var vidx = this.voxelIndexFromCoordinates(voxelVector[0], voxelVector[1], voxelVector[2])
-  return vidx
+proto.rootSize = function(size) {
+  proto.size = size
 }
 
-// deprecated
-Chunker.prototype.voxelVector = function(pos) {
-  var cubeSize = this.cubeSize
-  var mask = (1 << this.chunkBits) - 1
-  var vx = (Math.floor(pos[0] / cubeSize)) & mask
-  var vy = (Math.floor(pos[1] / cubeSize)) & mask
-  var vz = (Math.floor(pos[2] / cubeSize)) & mask
-  return [vx, vy, vz]
-};
+proto.create_root = function(bbox) {
+  var self = this
+    , size = self.size
+    , base = [
+        Math.floor(bbox.x0() / size) * size
+      , Math.floor(bbox.y0() / size) * size
+      , Math.floor(bbox.z0() / size) * size
+      ]
+    , tree_bbox = new bbox.constructor(base, [size, size, size])
 
-})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/chunker.js","/../../node_modules/voxel-engine/node_modules/voxel")
-},{"events":11,"inherits":20,"__browserify_process":1}],32:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = physical
+  function OurTree(size, bbox) {
+    Tree.call(this, size, bbox, null)
+  }
+
+  OurTree.prototype = Object.create(Tree.prototype)
+  OurTree.prototype.constructor = OurTree
+  OurTree.prototype.grow = function(new_root) {
+    self.root = new_root
+  }
+  OurTree.prototype.min_size = size
+
+  return new OurTree(size, tree_bbox) 
+}
+
+function finite(bbox) {
+  return isFinite(bbox.x0()) &&
+         isFinite(bbox.x1()) &&
+         isFinite(bbox.y0()) &&
+         isFinite(bbox.y1()) &&
+         isFinite(bbox.z0()) &&
+         isFinite(bbox.z1())
+}
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/spatial-events/index.js","/../../node_modules/voxel-engine/node_modules/spatial-events")
+},{"./tree":58,"aabb-3d":9,"__browserify_process":1}],33:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = physical
 
 var aabb = require('aabb-3d')
   , THREE = require('three')
@@ -55648,7 +55499,144 @@ proto.atRestZ = function() {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-physical/index.js","/../../node_modules/voxel-engine/node_modules/voxel-physical")
-},{"three":23,"aabb-3d":10,"__browserify_process":1}],35:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = coordinates
+},{"three":24,"aabb-3d":9,"__browserify_process":1}],36:[function(require,module,exports){(function(process,global,__filename,__dirname){var events = require('events')
+var inherits = require('inherits')
+
+module.exports = function(opts) {
+  return new Chunker(opts)
+}
+
+module.exports.Chunker = Chunker
+
+function Chunker(opts) {
+  this.distance = opts.chunkDistance || 2
+  this.chunkSize = opts.chunkSize || 32
+  this.cubeSize = opts.cubeSize || 25
+  this.generateVoxelChunk = opts.generateVoxelChunk
+  this.chunks = {}
+  this.meshes = {}
+
+  if (this.chunkSize & this.chunkSize-1 !== 0)
+    throw new Error('chunkSize must be a power of 2')
+  var bits = 0;
+  for (var size = this.chunkSize; size > 0; size >>= 1) bits++;
+  this.chunkBits = bits - 1;
+}
+
+inherits(Chunker, events.EventEmitter)
+
+Chunker.prototype.nearbyChunks = function(position, distance) {
+  var current = this.chunkAtPosition(position)
+  var x = current[0]
+  var y = current[1]
+  var z = current[2]
+  var dist = distance || this.distance
+  var nearby = []
+  for (var cx = (x - dist); cx !== (x + dist); ++cx) {
+    for (var cy = (y - dist); cy !== (y + dist); ++cy) {
+      for (var cz = (z - dist); cz !== (z + dist); ++cz) {
+        nearby.push([cx, cy, cz])
+      }
+    }
+  }
+  return nearby
+}
+
+Chunker.prototype.requestMissingChunks = function(position) {
+  var self = this
+  this.nearbyChunks(position).map(function(chunk) {
+    if (!self.chunks[chunk.join('|')]) {
+      self.emit('missingChunk', chunk)
+    }
+  })
+}
+
+Chunker.prototype.getBounds = function(x, y, z) {
+  var bits = this.chunkBits
+  var low = [x << bits, y << bits, z << bits]
+  var high = [(x+1) << bits, (y+1) << bits, (z+1) << bits]
+  return [low, high]
+}
+
+Chunker.prototype.generateChunk = function(x, y, z) {
+  var self = this
+  var bounds = this.getBounds(x, y, z)
+  var chunk = this.generateVoxelChunk(bounds[0], bounds[1], x, y, z)
+  var position = [x, y, z]
+  chunk.position = position
+  this.chunks[position.join('|')] = chunk
+  return chunk
+}
+
+Chunker.prototype.chunkAtCoordinates = function(x, y, z) {
+  var bits = this.chunkBits;
+  var cx = x >> bits;
+  var cy = y >> bits;
+  var cz = z >> bits;
+  var chunkPos = [cx, cy, cz];
+  return chunkPos;
+}
+
+Chunker.prototype.chunkAtPosition = function(position) {
+  var cubeSize = this.cubeSize;
+  var x = Math.floor(position[0] / cubeSize)
+  var y = Math.floor(position[1] / cubeSize)
+  var z = Math.floor(position[2] / cubeSize)
+  var chunkPos = this.chunkAtCoordinates(x, y, z)
+  return chunkPos
+};
+
+Chunker.prototype.voxelIndexFromCoordinates = function(x, y, z) {
+  var bits = this.chunkBits
+  var mask = (1 << bits) - 1
+  var vidx = (x & mask) + ((y & mask) << bits) + ((z & mask) << bits * 2)
+  return vidx
+}
+
+Chunker.prototype.voxelIndexFromPosition = function(pos) {
+  var v = this.voxelVector(pos)
+  return this.voxelIndex(v)
+}
+
+Chunker.prototype.voxelAtCoordinates = function(x, y, z, val) {
+  var ckey = this.chunkAtCoordinates(x, y, z).join('|')
+  var chunk = this.chunks[ckey]
+  if (!chunk) return false
+  var vidx = this.voxelIndexFromCoordinates(x, y, z)
+  var v = chunk.voxels[vidx]
+  if (typeof val !== 'undefined') {
+    chunk.voxels[vidx] = val
+  }
+  return v
+}
+
+Chunker.prototype.voxelAtPosition = function(pos, val) {
+  var cubeSize = this.cubeSize;
+  var x = Math.floor(pos[0] / cubeSize)
+  var y = Math.floor(pos[1] / cubeSize)
+  var z = Math.floor(pos[2] / cubeSize)
+  var v = this.voxelAtCoordinates(x, y, z, val)
+  return v;
+}
+
+// deprecated
+Chunker.prototype.voxelIndex = function(voxelVector) {
+  var vidx = this.voxelIndexFromCoordinates(voxelVector[0], voxelVector[1], voxelVector[2])
+  return vidx
+}
+
+// deprecated
+Chunker.prototype.voxelVector = function(pos) {
+  var cubeSize = this.cubeSize
+  var mask = (1 << this.chunkBits) - 1
+  var vx = (Math.floor(pos[0] / cubeSize)) & mask
+  var vy = (Math.floor(pos[1] / cubeSize)) & mask
+  var vz = (Math.floor(pos[2] / cubeSize)) & mask
+  return [vx, vy, vz]
+};
+
+})(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel/chunker.js","/../../node_modules/voxel-engine/node_modules/voxel")
+},{"events":11,"inherits":21,"__browserify_process":1}],35:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = coordinates
 
 var aabb = require('aabb-3d')
 var events = require('events')
@@ -55676,7 +55664,7 @@ function coordinates(spatial, box, regionWidth) {
   return emitter
 }
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-region-change/index.js","/../../node_modules/voxel-engine/node_modules/voxel-region-change")
-},{"events":11,"aabb-3d":10,"__browserify_process":1}],46:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = dragstream
+},{"events":11,"aabb-3d":9,"__browserify_process":1}],46:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = dragstream
 
 var Stream = require('stream')
   , read = require('domnode-dom').createReadStream
@@ -55744,7 +55732,7 @@ function dragstream(el) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream")
-},{"stream":18,"through":59,"domnode-dom":60,"__browserify_process":1}],43:[function(require,module,exports){(function(process,global,__filename,__dirname){var voxelMesh = require('voxel-mesh');
+},{"stream":19,"through":59,"domnode-dom":60,"__browserify_process":1}],43:[function(require,module,exports){(function(process,global,__filename,__dirname){var voxelMesh = require('voxel-mesh');
 var voxel = require('voxel');
 
 var EventEmitter = require('events').EventEmitter;
@@ -55865,7 +55853,7 @@ ChunkMatrix.prototype._update = function (ci) {
 };
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/lib/chunk_matrix.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/lib")
-},{"events":11,"./indexer":42,"voxel":44,"voxel-mesh":26,"inherits":20,"__browserify_process":1}],58:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = Tree
+},{"events":11,"./indexer":42,"voxel":44,"voxel-mesh":28,"inherits":21,"__browserify_process":1}],58:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = Tree
 
 var aabb = require('aabb-3d')
 
@@ -55991,7 +55979,7 @@ proto.send = function(event, bbox, args) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/spatial-events/tree.js","/../../node_modules/voxel-engine/node_modules/spatial-events")
-},{"aabb-3d":10,"__browserify_process":1}],59:[function(require,module,exports){(function(process,global,__filename,__dirname){var Stream = require('stream')
+},{"aabb-3d":9,"__browserify_process":1}],59:[function(require,module,exports){(function(process,global,__filename,__dirname){var Stream = require('stream')
 
 // through
 //
@@ -56091,7 +56079,7 @@ function through (write, end) {
 
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/through/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/through")
-},{"stream":18,"__browserify_process":1}],60:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = require('./lib/index')
+},{"stream":19,"__browserify_process":1}],60:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = require('./lib/index')
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/index.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom")
 },{"./lib/index":61,"__browserify_process":1}],61:[function(require,module,exports){(function(process,global,__filename,__dirname){var WriteStream = require('./writable')
@@ -56240,7 +56228,7 @@ Chunker.prototype.voxelVector = function(pos) {
 };
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel/chunker.js","/../../node_modules/voxel-engine/node_modules/voxel-chunks/node_modules/voxel")
-},{"events":11,"inherits":20,"__browserify_process":1}],62:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = DOMStream
+},{"events":11,"inherits":21,"__browserify_process":1}],62:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = DOMStream
 
 var Stream = require('stream').Stream
 
@@ -56318,7 +56306,7 @@ proto.constructTextPlain = function(data) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib/writable.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib")
-},{"stream":18,"__browserify_process":1}],63:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = DOMStream
+},{"stream":19,"__browserify_process":1}],63:[function(require,module,exports){(function(process,global,__filename,__dirname){module.exports = DOMStream
 
 var Stream = require('stream').Stream
 
@@ -56427,4 +56415,4 @@ function valueFromElement(el) {
 }
 
 })(require("__browserify_process"),window,"/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib/readable.js","/../../node_modules/voxel-engine/node_modules/interact/node_modules/drag-stream/node_modules/domnode-dom/lib")
-},{"stream":18,"__browserify_process":1}]},{},[3]);
+},{"stream":19,"__browserify_process":1}]},{},[3]);

@@ -1,89 +1,98 @@
-function findConvexBox(check, startPos, endPos, fn) {
-  var box = {
-    x: startPos.x,
-    y: startPos.y,
-    z: startPos.z,
-    width: 0,
-    height: 0,
-    depth: 0,
-    points: []
+"use strict"
+
+var X = 0
+var Y = 1
+var Z = 2
+
+var WIDTH = 0
+var HEIGHT = 1
+var DEPTH = 2
+
+function findConvexBox(check, startPos, chunk) {
+  if (arguments.length === 2) {
+    chunk = startPos
+    startPos = chunk.position.map(function(v, i) {
+      return v * chunk.dims[i]
+    })
   }
-  if (!check(startPos.x, startPos.y, startPos.z)) {
+  if (!chunk.voxels) throw new Error('Requires game chunk')
+
+  var endPos = chunk.position.map(function(v, i) {
+    return v * chunk.dims[i] + chunk.dims[i]
+  })
+
+  var box = {
+    dims: startPos.map(function(v, i) {return endPos[i] - v}),
+    position: [0,0,0]
+  }
+  if (!check(startPos)) {
     return false
   }
-  for (var x = startPos.x; x < endPos.x + 1; x++) {
-    var y = startPos.y
-    var z = startPos.z
-    if (!check(x, y, z)) {
-      box.width = x - startPos.x
-      break
-    } else {
-      box.points.push({x: x, y: y, z: z})
-    }
-
-  }
   var found = false
-  for (var z = startPos.z + 1; !found && z < endPos.z + 1; z++) {
-    for (var x = startPos.x; !found && x < startPos.x + box.width; x++) {
-      var y = startPos.y
-      if (!check(x, y, z)) {
-        box.depth = z - startPos.z
-        found = true
-      } else {
-        box.points.push({x: x, y: y, z: z})
+  for (var x = startPos[X]; !found && x < endPos[X]; x++) {
+    var y = startPos[Y]
+    var z = startPos[Z]
+    if (!check([x, y, z])) {
+      if (box.dims[WIDTH] > x - startPos[X]) box.dims[WIDTH] = x - startPos[X]
+    }
+  }
+
+  var found = false
+  for (var z = startPos[Z] + 1; !found && z < endPos[Z]; z++) {
+    for (var x = startPos[X]; !found && x < startPos[X] + box.dims[WIDTH]; x++) {
+      var y = startPos[Y]
+      if (!check([x, y, z])) {
+        if (box.dims[DEPTH] > z - startPos[Z]) box.dims[DEPTH] = z - startPos[Z]
       }
     }
   }
 
   var found = false
-  for (var z = startPos.y + 1; !found && y < endPos.y + 1; y++) {
-    for (var x = startPos.x; !found && x < startPos.x + box.width; x++) {
-      for (var z = startPos.z; !found && z < startPos.z + box.depth; z++) {
-        if (!check(x, y, z)) {
-          box.height = y - startPos.y
-          found = true
+  for (var y = startPos[Y] + 1; !found && y < endPos[Y]; y++) {
+    for (var x = startPos[X]; !found && x < startPos[X] + box.dims[WIDTH]; x++) {
+      for (var z = startPos[Z]; !found && z < startPos[Z] + box.dims[DEPTH]; z++) {
+        if (!check([x, y, z])) {
+          if (box.dims[HEIGHT] > y - startPos[Y]) box.dims[HEIGHT] = y - startPos[Y]
         }
       }
     }
   }
 
-  if (box.width == 0) box.width = 1;
-  if (box.height == 0) box.height = 1;
-  if (box.depth == 0) box.depth = 1;
-
-  box.x = startPos.x + box.width / 2
-  box.y = startPos.y + box.height / 2
-  box.z = startPos.z + box.depth / 2
+  if (box.dims[WIDTH] == 0) box.dims[WIDTH] = 1;
+  if (box.dims[HEIGHT] == 0) box.dims[HEIGHT] = 1;
+  if (box.dims[DEPTH] == 0) box.dims[DEPTH] = 1;
+  box.position[X] = startPos[X] //+ box.dims[WIDTH]
+  box.position[Y] = startPos[Y] //+ box.dims[HEIGHT]
+  box.position[Z] = startPos[Z] //+ box.dims[DEPTH]
   return box
 }
 
-findConvexBox.all = function(check, startPos, endPos, done) {
+findConvexBox.all = function(check, chunk, done) {
   var results = []
-  for (var x = startPos.x; x < endPos.x; x++) {
-    for (var y = startPos.y; y < endPos.y; y++) {
-      for (var z = startPos.z; z < endPos.z; z++) {
-        var result = findConvexBox(check, {x: x, y: y, z: z}, endPos)
-        if (result) {
-          done(result)
-          results.push(result)
-        }
-      }
+  findConvexBox.voxelsIn(chunk).forEach(function(pos) {
+    var result = findConvexBox(check, pos, chunk)
+    if (result) {
+      done(result)
+      results.push(result)
     }
-  }
+  })
   return results
 }
 
 
-findConvexBox.voxelsIn = function voxelsIn(box) {
-  var boxX = box.x - box.width / 2
-  var boxY = box.y - box.height / 2
-  var boxZ = box.z - box.depth / 2
+findConvexBox.voxelsIn = function voxelsIn(chunk) {
+  if (chunk.voxels) {
+    chunk = {
+      dims: chunk.dims.map(function(v) {return v}),
+      position: chunk.position.map(function(v, i) {return v * chunk.dims[i]})
+    }
+  }
 
   var points = []
-  for (var x = boxX; x < boxX + box.width; x++) {
-    for (var y = boxY; y < boxY + box.height; y++) {
-      for (var z = boxZ; z < boxZ + box.depth; z++) {
-        points.push({x: x, y: y, z: z})
+  for (var x = chunk.position[X]; x < chunk.position[X] + chunk.dims[WIDTH]; x++) {
+    for (var y = chunk.position[Y]; y < chunk.position[Y] + chunk.dims[HEIGHT]; y++) {
+      for (var z = chunk.position[Z]; z < chunk.position[Z] + chunk.dims[DEPTH]; z++) {
+        points.push([x, y, z])
       }
     }
   }

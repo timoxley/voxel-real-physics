@@ -5,6 +5,16 @@ var merge = require('../merge.js')
 var assert = require('assert')
 var Game = require('voxel-engine')
 var textures = require('painterly-textures')
+
+var X = 0
+var Y = 1
+var Z = 2
+
+var WIDTH = 0
+var HEIGHT = 1
+var DEPTH = 2
+
+
 Game.prototype.initializeControls = Game.prototype.hookupControls = function() {}
 
 var game = new Game({
@@ -14,7 +24,7 @@ var game = new Game({
   },
   texturePath: '../node_modules/painterly-textures/textures/',
   chunkSize: 16,
-  chunkDistance: 0,
+  chunkDistance: 5,
 })
 
 it('is sane', function() {
@@ -22,10 +32,14 @@ it('is sane', function() {
   assert.ok(typeof merge === 'function')
 })
 
-function generate(fn) {
-  for (var x = 0; x < game.chunkSize; x++) {
-    for (var y = 0; y < game.chunkSize; y++) {
-      for (var z = 0; z < game.chunkSize; z++) {
+function generate(chunk, fn) {
+  if (typeof chunk === 'function') {
+    fn = chunk
+    chunk = game.getChunkAtPosition([0,0,0])
+  }
+  for (var x = chunk.position[X] * chunk.dims[WIDTH]; x < chunk.dims[WIDTH] + chunk.position[X] * chunk.dims[WIDTH]; x++) {
+    for (var y = chunk.position[Y] * chunk.dims[HEIGHT]; y < chunk.dims[HEIGHT] + chunk.position[Y] * chunk.dims[HEIGHT]; y++) {
+      for (var z = chunk.position[Z] * chunk.dims[DEPTH]; z < chunk.dims[DEPTH] + chunk.position[Z] * chunk.dims[DEPTH]; z++) {
         game.setBlock([x, y, z], fn(x,y,z) || 0)
       }
     }
@@ -37,13 +51,8 @@ window.game = game
 var result, chunk, endPos, mesh
 
 
-function getBlock(x, y, z) {
-  getBlock.count = ++getBlock.count || 1
-  if (game.getBlock([x, y, z]) === 1) {
-    //game.setBlock([x,y,z], 3)
-    //setTimeout(function() {
-      //game.setBlock([x,y,z], 2)
-    //}, 100 * getBlock.count + 3000)
+function getBlock(pos) {
+  if (game.getBlock(pos) === 1) {
     return true
   }
   return false
@@ -51,18 +60,18 @@ function getBlock(x, y, z) {
 
 beforeEach(function() {
   chunk = game.getChunkAtPosition([0,0,0])
-  endPos = {
-    x: chunk.position[0] + chunk.dims[0],
-    y: chunk.position[1] + chunk.dims[1],
-    z: chunk.position[2] + chunk.dims[2]
-  }
+  //endPos = {
+  //x: chunk.position[0] + chunk.dims[0],
+  //y: chunk.position[1] + chunk.dims[1],
+  //z: chunk.position[2] + chunk.dims[2]
+  //}
 })
 
 afterEach(function() {
   if (DEBUG) return
-  generate(function() {
-    return 0
-  })
+    generate(function() {
+      return 0
+    })
 })
 
 afterEach(function() {
@@ -71,58 +80,57 @@ afterEach(function() {
 })
 
 function showMesh(result) {
+  showMesh.meshes = showMesh.meshes || []
   mesh = new game.THREE.Mesh(
-    new game.THREE.CubeGeometry(result.width,result.height,result.depth),
+    new game.THREE.CubeGeometry(result.dims[WIDTH],result.dims[HEIGHT],result.dims[DEPTH]),
     new game.THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } )
   )
-  mesh.position.set(result.x, result.y, result.z)
+  mesh.position.set(result.position[X] + result.dims[WIDTH] / 2, result.position[Y] + result.dims[HEIGHT] / 2, result.position[Z] + result.dims[DEPTH] / 2)
   game.scene.add(mesh)
+  showMesh.meshes.push(mesh)
 }
 
 function hideMesh() {
-  if (!mesh) return
-    game.scene.remove(mesh)
+  if (showMesh.meshes) {
+    showMesh.meshes.forEach(function(mesh) {
+      game.scene.remove(mesh)
+    })
+  }
 }
 
 describe('x', function() {
   describe('single row on x', function() {
     beforeEach(function() {
       generate(function(x, y, z) {
-        if (x < game.chunkSize && y == 0 && z == 0) return 1
-        return 0
+        if (y == 0 && z == 0) return 1
       })
-      result = merge(getBlock, {x: 0, y: 0, z: 0}, endPos)
+    result = merge(getBlock, chunk)
     })
 
     beforeEach(function() {
-      mesh = new game.THREE.Mesh(
-        new game.THREE.CubeGeometry(result.width,result.height,result.depth),
-        new game.THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } )
-      )
-      mesh.position.set(result.x, result.y, result.z)
-      game.scene.add(mesh)
+      showMesh(result)
     })
     it('can merge x', function() {
-      assert.equal(result.width, game.chunkSize)
+      assert.equal(result.dims[WIDTH], game.chunkSize)
     })
     it('can merge y', function() {
-      assert.equal(result.height, 1)
+      assert.equal(result.dims[HEIGHT], 1)
     })
     it('can merge z', function() {
-      assert.equal(result.depth, 1)
+      assert.equal(result.dims[DEPTH], 1)
     })
   })
   describe('broken row on x', function() {
     beforeEach(function() {
       generate(function(x, y, z) {
-        if (x < game.chunkSize && y == 0 && z == 0) {
+        if (y == 0 && z == 0) {
           if (x === game.chunkSize / 2) return 0
-          return 1
+            return 1
         }
         return 0
       })
 
-      result = merge(getBlock, {x: 0, y: 0, z: 0}, endPos)
+      result = merge(getBlock, chunk)
     })
 
     beforeEach(function() {
@@ -130,13 +138,13 @@ describe('x', function() {
     })
 
     it('can merge x', function() {
-      assert.equal(result.width, game.chunkSize / 2)
+      assert.equal(result.dims[WIDTH], game.chunkSize / 2)
     })
     it('can merge y', function() {
-      assert.equal(result.height, 1)
+      assert.equal(result.dims[HEIGHT], 1)
     })
     it('can merge z', function() {
-      assert.equal(result.depth, 1)
+      assert.equal(result.dims[DEPTH], 1)
     })
   })
 })
@@ -146,35 +154,34 @@ describe('y', function() {
     beforeEach(function() {
       generate(function(x, y, z) {
         if (y < game.chunkSize && x == 0 && z == 0) return 1
-        return 0
+          return 0
       })
-      result = merge(getBlock, {x: 0, y: 0, z: 0}, endPos)
+      result = merge(getBlock, chunk)
     })
 
     beforeEach(function() {
       showMesh(result)
     })
     it('can merge x', function() {
-      assert.equal(result.width, 1)
+      assert.equal(result.dims[WIDTH], 1)
     })
     it('can merge y', function() {
-      assert.equal(result.height, game.chunkSize)
+      assert.equal(result.dims[HEIGHT], game.chunkSize)
     })
     it('can merge z', function() {
-      assert.equal(result.depth, 1)
+      assert.equal(result.dims[DEPTH], 1)
     })
   })
 
   describe('broken row on y', function() {
     beforeEach(function() {
       generate(function(x, y, z) {
-        if (y < game.chunkSize && x == 0 && z == 0) {
+        if (x == 0 && z == 0) {
           if (y === game.chunkSize / 2) return 0
-          return 1
+            return 1
         }
-        return 0
       })
-      result = merge(getBlock, {x: 0, y: 0, z: 0}, endPos)
+      result = merge(getBlock, chunk)
     })
 
     beforeEach(function() {
@@ -182,13 +189,13 @@ describe('y', function() {
     })
 
     it('can merge x', function() {
-      assert.equal(result.width, 1)
+      assert.equal(result.dims[WIDTH], 1)
     })
     it('can merge y', function() {
-      assert.equal(result.height, game.chunkSize / 2)
+      assert.equal(result.dims[HEIGHT], game.chunkSize / 2)
     })
     it('can merge z', function() {
-      assert.equal(result.depth, 1)
+      assert.equal(result.dims[DEPTH], 1)
     })
   })
 
@@ -198,9 +205,8 @@ describe('y', function() {
         if (x < game.chunkSize && y < game.chunkSize && z == 0) {
           return 1
         }
-        return 0
       })
-      result = merge(getBlock, {x: 0, y: 0, z: 0}, endPos)
+      result = merge(getBlock, chunk)
     })
 
     beforeEach(function() {
@@ -208,13 +214,13 @@ describe('y', function() {
     })
 
     it('can merge x', function() {
-      assert.equal(result.width, game.chunkSize)
+      assert.equal(result.dims[WIDTH], game.chunkSize)
     })
     it('can merge y', function() {
-      assert.equal(result.height, game.chunkSize)
+      assert.equal(result.dims[HEIGHT], game.chunkSize)
     })
     it('can merge z', function() {
-      assert.equal(result.depth, 1)
+      assert.equal(result.dims[DEPTH], 1)
     })
   })
 
@@ -225,7 +231,7 @@ describe('y', function() {
           return 1
         }
       })
-      result = merge(getBlock, {x: 0, y: 0, z: 0}, endPos)
+      result = merge(getBlock, chunk)
     })
 
     beforeEach(function() {
@@ -233,53 +239,54 @@ describe('y', function() {
     })
 
     it('can merge x', function() {
-      assert.equal(result.width, game.chunkSize / 2)
+      assert.equal(result.dims[WIDTH], game.chunkSize / 2)
     })
     it('can merge y', function() {
-      assert.equal(result.height, game.chunkSize / 2)
+      assert.equal(result.dims[HEIGHT], game.chunkSize / 2)
     })
     it('can merge z', function() {
-      assert.equal(result.depth, 1)
+      assert.equal(result.dims[DEPTH], 1)
     })
   })
+
+
 })
 
 describe('z', function() {
   describe('single row on z', function() {
     beforeEach(function() {
       generate(function(x,y,z) {
-        if (x === 0 && y === 0 && z < game.chunkSize) {
+        if (x === 0 && y === 0) {
           return 1
         }
         return 0
       })
-      result = merge(getBlock, {x: 0, y: 0, z: 0}, endPos)
+      result = merge(getBlock, chunk)
     })
 
     beforeEach(function() {
       showMesh(result)
     })
     it('can merge x', function() {
-      assert.equal(result.width, 1)
+      assert.equal(result.dims[WIDTH], 1)
     })
     it('can merge y', function() {
-      assert.equal(result.height, 1)
+      assert.equal(result.dims[HEIGHT], 1)
     })
     it('can merge z', function() {
-      assert.equal(result.depth, game.chunkSize)
+      assert.equal(result.dims[DEPTH], game.chunkSize)
     })
   })
 
   describe('broken row on z', function() {
     beforeEach(function() {
       generate(function(x,y,z) {
-        if (x === 0 && y === 0 && z < game.chunkSize) {
+        if (x === 0 && y === 0) {
           if (z === game.chunkSize / 2) return 0
-          return 1
+            return 1
         }
-        return 0
       })
-      result = merge(getBlock, {x: 0, y: 0, z: 0}, endPos)
+      result = merge(getBlock, chunk)
     })
 
     beforeEach(function() {
@@ -287,13 +294,13 @@ describe('z', function() {
     })
 
     it('can merge x', function() {
-      assert.equal(result.width, 1)
+      assert.equal(result.dims[WIDTH], 1)
     })
     it('can merge y', function() {
-      assert.equal(result.height, 1)
+      assert.equal(result.dims[HEIGHT], 1)
     })
     it('can merge z', function() {
-      assert.equal(result.depth, game.chunkSize / 2)
+      assert.equal(result.dims[DEPTH], game.chunkSize / 2)
     })
   })
 
@@ -302,7 +309,7 @@ describe('z', function() {
       generate(function(x, y, z) {
         return 1
       })
-      result = merge(getBlock, {x: 0, y: 0, z: 0}, endPos)
+      result = merge(getBlock, chunk)
     })
 
     beforeEach(function() {
@@ -310,13 +317,13 @@ describe('z', function() {
     })
 
     it('can merge x', function() {
-      assert.equal(result.width, game.chunkSize)
+      assert.equal(result.dims[WIDTH], game.chunkSize)
     })
     it('can merge y', function() {
-      assert.equal(result.height, game.chunkSize)
+      assert.equal(result.dims[HEIGHT], game.chunkSize)
     })
     it('can merge z', function() {
-      assert.equal(result.depth,  game.chunkSize)
+      assert.equal(result.dims[DEPTH],  game.chunkSize)
     })
   })
 
@@ -325,13 +332,13 @@ describe('z', function() {
       generate(function(x, y, z) {
         if (x < game.chunkSize / 2
             && y < game.chunkSize / 2
-            && z < game.chunkSize / 2) {
-          return 1
-        }
-        return 0
+          && z < game.chunkSize / 2) {
+            return 1
+          }
+          return 0
       })
 
-      result = merge(getBlock, {x: 0, y: 0, z: 0}, endPos)
+      result = merge(getBlock, chunk)
     })
 
     beforeEach(function() {
@@ -339,90 +346,330 @@ describe('z', function() {
     })
 
     it('can merge x', function() {
-      assert.equal(result.width, game.chunkSize / 2)
+      assert.equal(result.dims[WIDTH], game.chunkSize / 2)
     })
     it('can merge y', function() {
-      assert.equal(result.height, game.chunkSize / 2)
+      assert.equal(result.dims[HEIGHT], game.chunkSize / 2)
     })
     it('can merge z', function() {
-      assert.equal(result.depth, game.chunkSize / 2)
+      assert.equal(result.dims[DEPTH], game.chunkSize / 2)
     })
   })
 })
 
-describe('setting points', function() {
+describe('cube', function() {
   beforeEach(function() {
     generate(function(x, y, z) {
       if (x < game.chunkSize / 2
           && y < game.chunkSize / 2
-          && z < game.chunkSize / 2) {
-        return 1
-      }
-      return 3
+        && z < game.chunkSize / 2) {
+          return 1
+        }
+        return 0
     })
-    result = merge(getBlock, {x: 0, y: 0, z: 0}, endPos)
+    result = merge(getBlock, chunk)
   })
 
   beforeEach(function() {
     showMesh(result)
   })
-  it('sets all points', function() {
-    merge.voxelsIn(result).forEach(function(pos) {
-      game.setBlock([pos.x, pos.y, pos.z], 2)
-    })
-    for (var x = 0; x < game.chunkSize / 2; x++) {
-      for (var y = 0; y < game.chunkSize / 2; y++) {
-        for (var z = 0; z < game.chunkSize / 2; z++) {
-          assert.equal(game.getBlock([x, y, z]), 2)
-        }
-      }
-    }
+  it('gets all points', function() {
+    assert.equal(merge.voxelsIn(result).length, game.chunkSize / 2 * game.chunkSize / 2 * game.chunkSize / 2)
   })
 })
 
 describe('multi find', function() {
-  describe('a U shape', function() {
-    beforeEach(function() {
-      generate(function(x, y, z) {
-        if (y == 0 && z < game.chunkSize) {
-          if (x == 0 || x == 1) return 1
-        }
-        if (y < game.chunkSize && (x == 0 || x == 1) && (z == 0 || z == game.chunkSize - 1)) {
-          return 1
-        }
-        return 0
+  var results
+  describe('stairs', function() {
+    describe('xy stairs', function() {
+      beforeEach(function() {
+        generate(function(x, y, z) {
+          if (z !== 0) return 0
+            if (x + y < 5) {
+              return 1
+            }
+        })
+        results = merge.all(getBlock, chunk, function(result) {
+          merge.voxelsIn(result).forEach(function(pos) {
+            game.setBlock(pos, 2)
+          })
+        })
+        results.forEach(showMesh)
+      })
+      it('creates optimum number of boxes', function() {
+        assert.equal(results.length, 5)
       })
     })
-    it('works', function() {
-      var results = merge.all(getBlock, {x: 0, y: 0, z: 0}, endPos, function(result) {
+    describe('xz stairs + z line', function() {
+      beforeEach(function() {
+        generate(function(x, y, z) {
+          if (y !== 0) return 0
+            if (z === 6) return 1
+            if (z + x < 5) {
+              return 1
+            }
+        })
+        results = merge.all(getBlock, chunk, function(result) {
+          merge.voxelsIn(result).forEach(function(pos) {
+            game.setBlock(pos, 2)
+          })
+        })
+        results.forEach(showMesh)
+      })
+      it('creates optimum number of boxes', function() {
+        assert.equal(results.length, 6)
+      })
+    })
+    describe('xz 2 way stairs + z line', function() {
+      beforeEach(function() {
+        generate(function(x, y, z) {
+          if (y < 10) {
+            if (Math.random() > 0.8) return 1
+          }
+          if (y !== 0) return 0
+            if (z + x < 5) {
+              return 1
+            }
+            if (z - x > 5 && z - x > 10) {
+              return 1
+            }
+            if (x - z > 5 && x - z > 10) {
+              return 1
+            }
+
+        })
+        results = merge.all(getBlock, chunk, function(result) {
+          merge.voxelsIn(result).forEach(function(pos) {
+            game.setBlock(pos, 2)
+          })
+        })
+        results.forEach(showMesh)
+      })
+      it('creates optimum number of boxes', function() {
+        assert.equal(results.length, 6)
+      })
+    })
+
+  })
+  describe('broken area shape on xy', function() {
+    beforeEach(function() {
+      generate(function(x, y, z) {
+        if (z == 0) {
+          if (x === game.chunkSize / 2 && y === game.chunkSize / 2) return 0
+          return 1
+        }
+      })
+      results = merge.all(getBlock, chunk, function(result) {
         merge.voxelsIn(result).forEach(function(pos) {
-          game.setBlock([pos.x, pos.y, pos.z], 2)
+          game.setBlock(pos, 2)
+        })
+      })
+    })
+    it('creates optimum number of boxes', function() {
+      assert.equal(results.length, 4)
+    })
+  })
+  describe('broken area shape on xz', function() {
+    beforeEach(function() {
+      generate(function(x, y, z) {
+        if (y == 0) {
+          if (x === game.chunkSize / 2 && z === game.chunkSize / 2) return 0
+            return 1
+        }
+      })
+      results = merge.all(getBlock, chunk, function(result) {
+        merge.voxelsIn(result).forEach(function(pos) {
+          game.setBlock(pos, 2)
         })
       })
       results.forEach(showMesh)
+    })
+    it('creates optimum number of boxes', function() {
+      assert.equal(results.length, 4)
+    })
+  })
+
+  describe('broken area shape on xyz', function() {
+    beforeEach(function() {
+      generate(function(x, y, z) {
+        if (x === game.chunkSize / 2 && y === game.chunkSize / 2 && z === game.chunkSize - 1) return 0
+          return 1
+      })
+      results = merge.all(getBlock, chunk, function(result) {
+        merge.voxelsIn(result).forEach(function(pos) {
+          game.setBlock(pos, 2)
+        })
+      })
+      results.forEach(showMesh)
+    })
+    it('creates optimum number of boxes', function() {
+      assert.equal(results.length, 5)
+    })
+  })
+  describe('different chunks', function() {
+    describe('single row on x', function() {
+      beforeEach(function() {
+        chunk = game.getChunkAtPosition([game.chunkSize, game.chunkSize, game.chunkSize])
+        generate(chunk, function(x, y, z) {
+          if (y == game.chunkSize && z == game.chunkSize) return 1
+        })
+        results = merge.all(getBlock, chunk, function(result) {
+          merge.voxelsIn(result).forEach(function(pos) {
+            game.setBlock(pos, 2)
+          })
+        })
+        results.forEach(showMesh)
+
+      })
+      it('merges correctly', function() {
+        assert.equal(results.length, 1)
+        var result = results[0]
+        assert.equal(result.dims[WIDTH], game.chunkSize)
+        assert.equal(result.dims[HEIGHT], 1)
+        assert.equal(result.dims[DEPTH], 1)
+      })
+    })
+
+    describe('area shape on xyz', function() {
+      beforeEach(function() {
+        chunk = game.getChunkAtPosition([game.chunkSize, game.chunkSize, game.chunkSize])
+        // make it a little smaller than dims
+        // to test algorithm doesn't rely on
+        // dim values
+        generate(chunk, function(x, y, z) {
+          if (x < game.chunkSize - 1 &&
+              y < game.chunkSize - 1 &&
+              z < game.chunkSize - 1) return 1
+        })
+        results = merge.all(getBlock, chunk, function(result) {
+          merge.voxelsIn(result).forEach(function(pos) {
+            game.setBlock(pos, 2)
+          })
+        })
+        results.forEach(showMesh)
+      })
+      it('merges correctly', function() {
+        assert.equal(results.length, 1)
+        var result = results[0]
+        assert.equal(result.dims[WIDTH], game.chunkSize - 1)
+        assert.equal(result.dims[HEIGHT], game.chunkSize - 1)
+        assert.equal(result.dims[DEPTH], game.chunkSize - 1)
+      })
+    })
+    describe('broken area shape on xyz', function() {
+      beforeEach(function() {
+        chunk = game.getChunkAtPosition([game.chunkSize, game.chunkSize, game.chunkSize])
+        generate(chunk, function(x, y, z) {
+          if (x === game.chunkSize + game.chunkSize / 2 && y === game.chunkSize && z === game.chunkSize) return 0
+          return 1
+        })
+        results = merge.all(getBlock, chunk, function(result) {
+          merge.voxelsIn(result).forEach(function(pos) {
+            game.setBlock(pos, 2)
+          })
+        })
+        results.forEach(showMesh)
+      })
+      it.only('merges correctly', function() {
+        assert.equal(results.length, 4)
+      })
+    })
+
+
+  })
+
+  describe('a U shape', function() {
+    beforeEach(function() {
+      generate(function(x, y, z) {
+        if (y == 0) {
+          if (x == 0 || x == 1) return 1
+        }
+      if ((x == 0 || x == 1) && (z == 0 || z == game.chunkSize - 1)) {
+        return 1
+      }
+      })
+      results = merge.all(getBlock, chunk, function(result) {
+        merge.voxelsIn(result).forEach(function(pos) {
+          game.setBlock(pos, 2)
+        })
+        showMesh(result)
+      })
+    })
+    it('works', function() {
       assert.equal(results.length, 3)
     })
   })
+
   describe('terrain', function() {
     beforeEach(function() {
       generate(function(x, y, z) {
         var val = y + 4 * Math.sin(x / game.chunkSize * 10)
         if (val > 2 && val < 5) return 1
       })
-    })
-    it.only('works', function() {
-      var results = merge.all(getBlock, {x: 0, y: 0, z: 0}, endPos, function(result) {
-        merge.voxelsIn(result).forEach(function(pos) {
-          game.setBlock([pos.x, pos.y, pos.z], 2)
-        })
+    results = merge.all(getBlock, chunk, function(result) {
+      merge.voxelsIn(result).forEach(function(pos) {
+        game.setBlock(pos, 2)
       })
-      results.forEach(showMesh)
+      showMesh(result)
+    })
+
+    })
+    it('works', function() {
       assert.equal(results.length, 14)
+    })
+  })
+  describe('box with chinks', function() {
+    beforeEach(function() {
+      generate(function(x, y, z) {
+        //if (y === 2) return 1
+        if (x === 13) return 0
+          if (y === 2) return 1
+            //var val = y + 3 * Math.sin(z / 4)
+            //if (val > 1 && val < 5) {
+            //console.log(x, y, z)
+            //return 1
+            //}
+      })
+      var removeBlock = game.blockPosition([2.7786577951257296, 2.999999957666711, 5.581482984617888])
+      //console.log(removeBlock)
+      game.setBlock(removeBlock, 0)
+      results = merge.all(getBlock, chunk, function(result) {
+        merge.voxelsIn(result).forEach(function(pos) {
+          //try {
+          assert.notDeepEqual(pos, removeBlock)
+          //} catch (e) {
+          //console.log('omg', result)
+          //results
+          //pos
+          //debugger
+          //}
+          game.setBlock(pos, 2)
+        })
+        showMesh(result)
+
+      })
+
+      game.setBlock(removeBlock, 0)
+    })
+    it('works', function() {
+      //assert.equal(results.length, 14)
     })
   })
 })
 
+//window.onmousedown = function() {
+//var ray = game.raycast()
+//if (!ray) return
+//game.setBlock(ray.position, 0)
+////console.log(ray.position)
+//var results = merge.all(getBlock, game.getChunkAtPosition(ray.position), function(result) {
+//merge.voxelsIn(result).forEach(function(pos) {
+//game.setBlock(pos, 2)
+//})
+//})
+//results.forEach(showMesh)
 
+//}
 
 game.camera.position.set(0, 5, 0)
 game.appendTo(document.getElementById('world'))

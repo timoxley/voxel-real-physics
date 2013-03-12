@@ -4,6 +4,14 @@ var CANNON = require('cannon')
 var memoize = require('memoizer')
 var aabb = require('aabb-3d')
 
+var X = 0
+var Y = 1
+var Z = 2
+
+var WIDTH = 0
+var HEIGHT = 1
+var DEPTH = 2
+
 module.exports = function(game) {
   var physics = new Physics(game.THREE, {
     gravity: new CANNON.Vec3(game.gravity[0], game.gravity[1], game.gravity[2])
@@ -17,6 +25,11 @@ module.exports = function(game) {
   game.on('renderChunk', function(chunk) {
     physics.createPhysicsEntities(chunk)
   })
+  for (var chunkPos in game.voxels.chunks) {
+    var chunk = game.voxels.chunks[chunkPos]
+    if (chunk) physics.createPhysicsEntities(chunk)
+  }
+
   return physics
 }
 
@@ -35,48 +48,38 @@ Physics.prototype.createPhysicsEntities = function createPhysicsEntities(chunk) 
   var self = this
   var game = this.game
 
-  createPhysicsEntities.items = createPhysicsEntities.items || []
-
-  createPhysicsEntities.items.forEach(function(item) {
+  createPhysicsEntities.items = createPhysicsEntities.items || {}
+  var chunkItems = createPhysicsEntities.items[chunk.position.join('|')]
+  chunkItems && chunkItems.forEach(function(item) {
     game.scene.remove(item.mesh)
     self.world.remove(item.body);
   })
-  createPhysicsEntities.items = []
+  chunkItems = createPhysicsEntities.items[chunk.position.join('|')] = []
 
-  var startPos =  {
-    x: chunk.position[0] - chunk.dims[0] * 2,
-    y: chunk.position[1] - chunk.dims[1] * 2,
-    z: chunk.position[2] - chunk.dims[2] * 2
-  }
-
-  var endPos = {
-    x: chunk.position[0] + chunk.dims[0] * 2,
-    y: chunk.position[1] + chunk.dims[1] * 2,
-    z: chunk.position[2] + chunk.dims[2] * 2
-  }
-
-  merge.all(function(x, y, z) {
-    return game.getBlock([x, y, z]) && !isProcessed([x, y, z])
-  }, startPos, endPos, function(result) {
+  merge.all(function(pos) {
+    return game.getBlock(pos) && !isProcessed(pos)
+  }, chunk, function(result) {
     merge.voxelsIn(result).forEach(function(pos) {
-      markProcessed([pos.x, pos.y, pos.z])
+      markProcessed(pos)
     })
-    var boxShape = new CANNON.Box(new CANNON.Vec3(result.width / 2, result.height / 2, result.depth / 2))
+    var position = result.position.map(function(v, i) {return v + result.dims[i] / 2})
+    var boxShape = new CANNON.Box(new CANNON.Vec3(result.dims[WIDTH] / 2, result.dims[HEIGHT] / 2, result.dims[DEPTH] / 2))
     var box = new CANNON.RigidBody(0, boxShape)
-    box.position.set(result.x, result.y, result.z)
+    box.position.set.apply(box.position, position)
     self.world.add(box);
 
 
     var mesh = new game.THREE.Mesh(
-      new game.THREE.CubeGeometry(result.width,result.height,result.depth),
+      new game.THREE.CubeGeometry(result.dims[WIDTH],result.dims[HEIGHT],result.dims[DEPTH]),
       new game.THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } )
     )
 
-    createPhysicsEntities.items.push({
+    chunkItems.push({
       mesh: mesh,
       body: box
     })
-    mesh.position.set(result.x, result.y, result.z)
+
+    box.position.copy(mesh.position)
     game.scene.add(mesh)
 
   })
@@ -101,7 +104,7 @@ function createWorld(opts) {
   solver.iterations = 7;
   world.defaultContactMaterial.contactEquationRegularizationTime = 0.55;
   solver.tolerance = 0.1;
-  world.solver = new CANNON.SplitSolver(solver);
+  world.solver = solver// new CANNON.SplitSolver(solver);
 
   world.quatNormalizeFast = true;
   world.quatNormalizeSkip = 0;

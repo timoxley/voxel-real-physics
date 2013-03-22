@@ -66,8 +66,7 @@ Physics.prototype.createPhysicsEntities = function createPhysicsEntities(chunk) 
     var boxShape = new CANNON.Box(new CANNON.Vec3(result.dims[WIDTH] / 2, result.dims[HEIGHT] / 2, result.dims[DEPTH] / 2))
     var box = new CANNON.RigidBody(0, boxShape)
     box.position.set.apply(box.position, position)
-    self.world.add(box);
-
+    self.world.add(box)
 
     var mesh = new game.THREE.Mesh(
       new game.THREE.CubeGeometry(result.dims[WIDTH],result.dims[HEIGHT],result.dims[DEPTH]),
@@ -103,7 +102,7 @@ function createWorld(opts) {
   var solver = new CANNON.GSSolver();
   solver.iterations = 7;
   world.defaultContactMaterial.contactEquationRegularizationTime = 0.55;
-  solver.tolerance = 0.1;
+  solver.tolerance = 0.01;
   world.solver = solver// new CANNON.SplitSolver(solver);
 
   world.quatNormalizeFast = true;
@@ -119,11 +118,13 @@ function createWorld(opts) {
 }
 
 Physics.prototype.add = function add(mesh, body) {
-  this.items.push({
+  var item = {
     mesh: mesh,
     body: body
-  })
+  }
+  this.items.push(item)
   this.world.add(body)
+  return item
 }
 
 Physics.prototype.tick = function tick(dt) {

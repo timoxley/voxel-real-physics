@@ -22,6 +22,7 @@ module.exports = function(game) {
     physics.tick(dt/200)
   })
   physics.game = game
+  game.physics = physics
   game.on('renderChunk', function(chunk) {
     physics.createPhysicsEntities(chunk)
   })
@@ -29,7 +30,6 @@ module.exports = function(game) {
     var chunk = game.voxels.chunks[chunkPos]
     if (chunk) physics.createPhysicsEntities(chunk)
   }
-
   return physics
 }
 

@@ -4888,10 +4888,8 @@ module.exports = findConvexBox
 var Game = require('voxel-engine')
 var textures = require('painterly-textures')
 
-
 var Physics = require('../../')
 var control = require('../../control')(Game)
-//Game.prototype.initializeControls = Game.prototype.hookupControls = function() {}
 
 var game = new Game({
   generate: function(x, y, z) {

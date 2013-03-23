@@ -66,6 +66,8 @@ Physics.prototype.createPhysicsEntities = function createPhysicsEntities(chunk) 
     box.position.set.apply(box.position, position)
     self.world.add(box)
 
+    if (!self.debug) return
+
     var mesh = new game.THREE.Mesh(
       new game.THREE.CubeGeometry(result.dims[WIDTH],result.dims[HEIGHT],result.dims[DEPTH]),
       new game.THREE.MeshBasicMaterial( { color: 0xff0000, wireframe: true } )

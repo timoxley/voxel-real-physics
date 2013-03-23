@@ -1,8 +1,6 @@
 "use strict"
 
 var CANNON = require('cannon')
-var memoize = require('memoizer')
-var aabb = require('aabb-3d')
 
 var X = 0
 var Y = 1
@@ -139,6 +137,5 @@ function update(mesh, body) {
   body.position.copy(mesh.position);
   body.quaternion.copy(mesh.quaternion);
 }
-
 
 

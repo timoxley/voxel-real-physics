@@ -120,6 +120,7 @@ var controls = {
       this.game.scene.add(this.yawObject)
       this.game.control.yawObject = this.yawObject
       this.pitchObject.position.y = 1.62
+      this.pitchObject.position.z = 1.62
       this._target.addEventListener("collide", function(e){
         var contact = e.contact;
 

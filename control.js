@@ -47,7 +47,7 @@ function makePhysical(mesh, options) {
   if (typeof options.mass === 'undefined') options.mass = 1
 
   var body = new CANNON.RigidBody(1000, shape)
-  body.linearDamping = 0.8;
+  body.linearDamping = 0.4;
   body.angularDamping = 0.8;
   mesh.position.copy(body.position)
   return this.physics.add(mesh, body)
@@ -100,12 +100,18 @@ var controls = {
   },
   tick: function tick(delta, state) {
     var THREE = this.game.THREE
+    var CANNON = this.game.physics.CANNON
+
     var velocity = this._target.velocity;
 
     if (!tick.initialized) {
+      var self = this
       this.inputVelocity = new THREE.Vector3();
       this.quat = new THREE.Quaternion();
-
+      this.contactNormal = new CANNON.Vec3()
+      this.upAxis = new CANNON.Vec3(0,1,0)
+      this.canJump = false
+      this.jumpVelocity = 3
       this.yawObject = new THREE.Object3D();
       this.pitchObject = new THREE.Object3D();
       this.yawObject.add(this.pitchObject);
@@ -114,7 +120,20 @@ var controls = {
       this.game.scene.add(this.yawObject)
       this.game.control.yawObject = this.yawObject
       this.pitchObject.position.y = 1.62
+      this._target.addEventListener("collide", function(e){
+        var contact = e.contact;
 
+        // contact.bi and contact.bj are the colliding bodies, and contact.ni is the collision normal.
+        // We do not yet know which one is which! Let's check.
+        if(contact.bi.id == self._target.id)  // bi is the player body, flip the contact normal
+          contact.ni.negate(self.contactNormal);
+        else
+          contact.ni.copy(self.contactNormal); // bi is something else. Keep the normal as it is
+
+        // If contactNormal.dot(upAxis) is between 0 and 1, we know that the contact normal is somewhat in the up direction.
+        if(self.contactNormal.dot(self.upAxis) > 0.1) // Use a "good" threshold value between 0 and 1 here!
+          self.canJump = true;
+      });
       tick.initialized = true
     }
 
@@ -133,7 +152,18 @@ var controls = {
     if (state.right) {
       this.inputVelocity.x = this.velocityFactor * delta;
     }
-    
+
+    if (state.jump) {
+      if (this.canJump) {
+        velocity.y = this.jumpVelocity;
+      }
+      this.canJump = false;
+
+      //if (velocity.y < 0.5) {
+        //this.inputVelocity.y = this.velocityFactor * delta;
+      //}
+    }
+
     // Convert velocity to world coordinates
     this.quat.setFromEuler({x: this.pitchObject.rotation.x, y: this.yawObject.rotation.y, z: 0},"XYZ");
     this.inputVelocity.applyQuaternion(this.quat);

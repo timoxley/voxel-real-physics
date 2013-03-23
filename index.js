@@ -31,6 +31,7 @@ module.exports = function(game) {
   return physics
 }
 
+module.exports.control = require('./control')
 var merge = require('./merge')
 
 Physics.prototype.createPhysicsEntities = function createPhysicsEntities(chunk) {
